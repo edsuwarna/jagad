@@ -79,10 +79,10 @@
 | 5.1 | Error handling — all states | 🟡 Partial | Most endpoints have proper errors, some raw 500 remain |
 | 5.2 | Empty / loading / error UI states | ✅ Done | |
 | 5.3 | Multi-stage Docker build | ✅ Done | |
-| 5.4 | GitHub Actions — build + push image | ⏳ | |
-| 5.5 | README.md — quick start + usage | ⏳ | |
+|| 5.4 | GitHub Actions — build + push image | ✅ Done | |
+| 5.5 | README.md — quick start + usage | ✅ Done | |
 | 5.6 | DESIGN.md validation | ⏳ | |
-| 5.7 | License file (Apache 2.0) | ⏳ | |
+| 5.7 | License file (Apache 2.0) | ✅ Done | |
 
 ## PRD Feature Status
 

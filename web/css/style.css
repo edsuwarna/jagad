@@ -740,9 +740,51 @@ tbody tr.status-running td:first-child { border-left: 3px solid var(--table-bord
   color: var(--text-secondary);
 }
 
+/* ─── HAMBURGER ─── */
+.hamburger {
+  display: none; width: 36px; height: 36px;
+  border: none; background: none;
+  color: var(--text-secondary); cursor: pointer;
+  align-items: center; justify-content: center;
+  border-radius: var(--radius-md);
+  transition: all 0.2s; flex-shrink: 0;
+}
+.hamburger:hover { background: var(--bg-subtle); color: var(--text-primary); }
+
+/* ─── SIDEBAR OVERLAY ─── */
+.sidebar-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 49;
+  background: rgba(0,0,0,0.5);
+  opacity: 0; transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.sidebar-overlay.open { opacity: 1; pointer-events: all; }
+
 /* ─── RESPONSIVE ─── */
 @media(max-width:900px) {
-  .sidebar { display: none; }
+  .hamburger { display: inline-flex; }
+
+  .app-layout { position: relative; }
+
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.25s ease;
+    box-shadow: none;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-xl);
+  }
+  .sidebar-overlay { display: block; }
+
+  .sidebar-link.active::before {
+    left: 0;
+  }
+
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .grid-2 { grid-template-columns: 1fr; }
   .schedule-details { grid-template-columns: repeat(2, 1fr); }

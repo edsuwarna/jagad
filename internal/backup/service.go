@@ -29,14 +29,16 @@ type Service struct {
 	connRepo   connection.Repository
 	provSvc    ProviderService
 	encSvc     encryption.Service
+	semaphore  chan struct{} // concurrent backup limiter (max 3)
 }
 
 // NewService creates a new backup service.
 func NewService(repo Repository, connRepo connection.Repository, provSvc ProviderService) *Service {
 	return &Service{
-		repo:     repo,
-		connRepo: connRepo,
-		provSvc:  provSvc,
+		repo:      repo,
+		connRepo:  connRepo,
+		provSvc:   provSvc,
+		semaphore: make(chan struct{}, 3),
 	}
 }
 
@@ -84,6 +86,10 @@ func (s *Service) StartBackup(connectionID, databaseID, backupType string, sched
 }
 
 func (s *Service) runBackup(b *Backup, conn *connection.Connection, db *connection.ConnectionDatabase) {
+	// Acquire semaphore slot (block if already 3 concurrent backups)
+	s.semaphore <- struct{}{}
+	defer func() { <-s.semaphore }()
+
 	startTime := time.Now()
 	b.StartedAt = &startTime
 
@@ -141,10 +147,23 @@ func (s *Service) runBackup(b *Backup, conn *connection.Connection, db *connecti
 		logBuf.WriteString(fmt.Sprintf("ENCRYPT: %d bytes (AES-256-GCM)\n", len(encrypted)))
 	}
 
-	// 4. Upload to S3
+	// 4. Upload to S3 with retry
 	ctx := context.Background()
-	if err := storageSvc.Upload(ctx, key, bytes.NewReader(finalData), int64(len(finalData))); err != nil {
-		logBuf.WriteString(fmt.Sprintf("UPLOAD ERROR: %v\n", err))
+	var uploadErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			backoff := time.Duration(1<<(attempt-1)) * time.Second
+			logBuf.WriteString(fmt.Sprintf("UPLOAD: retrying in %v (attempt %d/3)\n", backoff, attempt+1))
+			time.Sleep(backoff)
+		}
+		reader := bytes.NewReader(finalData)
+		uploadErr = storageSvc.Upload(ctx, key, reader, int64(len(finalData)))
+		if uploadErr == nil {
+			break
+		}
+	}
+	if uploadErr != nil {
+		logBuf.WriteString(fmt.Sprintf("UPLOAD ERROR (after 3 attempts): %v\n", uploadErr))
 		s.failBackup(b, logBuf.String())
 		return
 	}

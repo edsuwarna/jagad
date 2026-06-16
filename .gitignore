@@ -6,6 +6,8 @@ build/
 *.dll
 *.so
 *.dylib
+backupeer
+backupeer-*
 
 # Data
 data/

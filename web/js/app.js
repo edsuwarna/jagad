@@ -32,6 +32,8 @@ function navigate(page) {
   document.querySelectorAll('.sidebar-link').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
+  // Close mobile sidebar on nav
+  closeMobileSidebar();
 }
 
 window.addEventListener('popstate', () => {
@@ -50,6 +52,36 @@ function toggleTheme() {
   });
   lucide.createIcons();
   localStorage.setItem('backupeer-theme', next);
+}
+
+function toggleMobileSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const btn = document.getElementById('hamburger-btn');
+  if (!sidebar) return;
+  const open = sidebar.classList.toggle('open');
+  if (overlay) overlay.classList.toggle('open', open);
+  if (btn) {
+    const icon = btn.querySelector('i');
+    if (icon) icon.setAttribute('data-lucide', open ? 'x' : 'menu');
+  }
+  lucide.createIcons();
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+
+function closeMobileSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const btn = document.getElementById('hamburger-btn');
+  if (!sidebar || !sidebar.classList.contains('open')) return;
+  sidebar.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
+  if (btn) {
+    const icon = btn.querySelector('i');
+    if (icon) icon.setAttribute('data-lucide', 'menu');
+  }
+  lucide.createIcons();
+  document.body.style.overflow = '';
 }
 
 async function init() {
@@ -125,6 +157,9 @@ function renderApp() {
 
   document.getElementById('app').innerHTML = `
     <div class="app-layout">
+      <!-- Sidebar overlay (mobile) -->
+      <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeMobileSidebar()"></div>
+
       <!-- Sidebar -->
       <aside class="sidebar">
         <div class="sidebar-header">
@@ -185,6 +220,9 @@ function renderApp() {
         <!-- Top Bar -->
         <div class="top-bar">
           <div class="top-bar-left">
+            <button class="hamburger" onclick="toggleMobileSidebar()" id="hamburger-btn" title="Toggle menu">
+              <i data-lucide="menu" size="18"></i>
+            </button>
             <div class="breadcrumb">
               <a href="#" onclick="navigate('dashboard');return false;">Backupeer</a>
               <span>/</span>
@@ -335,13 +373,14 @@ async function renderDashboard(el) {
     document.getElementById('stat-scheds').textContent = scheds.filter(s => s.enabled !== false).length;
     document.getElementById('stat-storage').textContent = storageProvs.length;
 
+    const recent = backups || [];
+
     if (stats) {
       document.getElementById('stat-backups').textContent = stats.total_backups || 0;
       const successRate = stats.success_rate ? Math.round(stats.success_rate) : 0;
       document.getElementById('stat-backup-detail').innerHTML =
         `<span class="stat-change ${successRate >= 80 ? 'up' : 'down'}">${successRate}% success rate</span>`;
     } else {
-      const recent = backups || [];
       document.getElementById('stat-backups').textContent = recent.length;
       const successCount = recent.filter(b => b.status === 'success').length;
       if (recent.length > 0) {
