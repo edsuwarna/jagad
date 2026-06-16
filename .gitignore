@@ -34,3 +34,4 @@ vendor/
 node_modules/
 site/.vitepress/dist/
 site/.vitepress/cache/
+site/package-lock.json
