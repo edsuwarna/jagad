@@ -10,17 +10,14 @@ const (
 	TypeSlack    = "slack"
 )
 
-// Notification represents a notification channel configuration.
+// Notification represents a notification channel target (just a destination config).
 type Notification struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	NotifType       string    `json:"notif_type"` // telegram, discord, slack
-	ConfigJSON      string    `json:"config_json"`
-	NotifyOnSuccess bool      `json:"notify_on_success"`
-	NotifyOnFailure bool      `json:"notify_on_failure"`
-	Enabled         bool      `json:"enabled"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	NotifType string    `json:"notif_type"` // telegram, discord, slack
+	ConfigJSON string   `json:"config_json"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // TelegramConfig holds Telegram bot config.

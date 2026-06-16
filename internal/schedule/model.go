@@ -16,6 +16,9 @@ type Schedule struct {
 	VerifyEnabled       bool      `json:"verify_enabled"`
 	RetentionFull       int       `json:"retention_full"`
 	RetentionIncr       int       `json:"retention_incr"`
+	NotifTargetIDs      []string  `json:"notif_target_ids"`   // notification target IDs
+	NotifyOnSuccess     bool      `json:"notify_on_success"`
+	NotifyOnFailure     bool      `json:"notify_on_failure"`
 	Enabled             bool      `json:"enabled"`
 	CreatedAt           time.Time `json:"created_at"`
 }

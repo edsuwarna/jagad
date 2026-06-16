@@ -188,6 +188,10 @@ function renderApp() {
             <span class="icon"><i data-lucide="calendar" size="16"></i></span>
             Schedules
           </a>
+          <a class="sidebar-link ${page === 'restores' ? 'active' : ''}" data-page="restores" onclick="navigate('restores')">
+            <span class="icon"><i data-lucide="rotate-ccw" size="16"></i></span>
+            Restores
+          </a>
 
           <div class="sidebar-section-label" style="margin-top:var(--space-md);">Infrastructure</div>
 
@@ -283,7 +287,7 @@ function renderPage(page) {
   const el = document.getElementById('page-content');
   if (!el) return;
 
-  const titles = { dashboard: 'Dashboard', connections: 'Connections', backups: 'Backups', schedules: 'Schedules', storage: 'Storage', notifications: 'Notifications', settings: 'Settings' };
+  const titles = { dashboard: 'Dashboard', connections: 'Connections', backups: 'Backups', schedules: 'Schedules', restores: 'Restores', storage: 'Storage', notifications: 'Notifications', settings: 'Settings' };
   const titleEl = document.getElementById('page-title-breadcrumb');
   if (titleEl) titleEl.textContent = titles[page] || 'Dashboard';
 
@@ -294,6 +298,7 @@ function renderPage(page) {
     case 'schedules': renderSchedules(el); break;
     case 'storage': renderStorage(el); break;
     case 'notifications': renderNotifications(el); break;
+    case 'restores': renderRestores(el); break;
     case 'settings': renderSettings(el); break;
     default: el.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="file-x" size="24"></i></div><h3>Page not found</h3></div>'; lucide.createIcons();
   }
@@ -487,7 +492,7 @@ function showAddConnectionModal() {
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Type</label>
-        <select class="form-select" id="modal-conn-type">
+        <select class="form-select" id="modal-conn-type" onchange="updateConnPort()">
           <option value="postgresql">PostgreSQL</option>
           <option value="mysql">MySQL</option>
           <option value="mariadb">MariaDB</option>
@@ -495,7 +500,7 @@ function showAddConnectionModal() {
       </div>
       <div class="form-group" style="flex:1">
         <label class="form-label">Port</label>
-        <input class="form-input" id="modal-conn-port" value="5432">
+        <input class="form-input" id="modal-conn-port" value="5432" placeholder="auto">
       </div>
     </div>
     <div class="form-group">
@@ -597,6 +602,34 @@ async function deleteConn(id) {
   } catch (err) { alert('Error: ' + err.message); }
 }
 
+function updateConnPort() {
+  const type = document.getElementById('modal-conn-type')?.value;
+  const portMap = { postgresql: 5432, mysql: 3306, mariadb: 3306 };
+  const portInput = document.getElementById('modal-conn-port');
+  if (portInput) portInput.value = portMap[type] || 5432;
+}
+
+function updateStoragePlaceholders() {
+  const type = document.getElementById('modal-stor-type')?.value;
+  const hints = {
+    s3:        { endpoint: 'https://s3.amazonaws.com',        bucket: 'my-backups',   region: 'us-east-1',    pathStyle: 'false' },
+    r2:        { endpoint: 'https://<acct>.r2.cloudflarestorage.com', bucket: 'my-backups', region: 'auto',        pathStyle: 'true' },
+    minio:     { endpoint: 'http://localhost:9000',           bucket: 'my-backups',   region: 'us-east-1',    pathStyle: 'true' },
+    gcs:       { endpoint: 'https://storage.googleapis.com',  bucket: 'my-bucket',    region: 'auto',         pathStyle: 'false' },
+    b2:        { endpoint: 'https://s3.us-west-000.backblazeb2.com', bucket: 'my-bucket', region: 'us-west-000', pathStyle: 'true' },
+    's3-compat': { endpoint: 'https://your-storage.example.com', bucket: 'my-bucket',  region: 'auto',        pathStyle: 'true' },
+  };
+  const h = hints[type] || hints.s3;
+  const ep = document.getElementById('modal-stor-endpoint');
+  const bk = document.getElementById('modal-stor-bucket');
+  const rg = document.getElementById('modal-stor-region');
+  const ps = document.getElementById('modal-stor-pathstyle');
+  if (ep) { ep.placeholder = h.endpoint; ep.value = ''; }
+  if (bk) { bk.placeholder = h.bucket; bk.value = ''; }
+  if (rg) { rg.placeholder = h.region; rg.value = ''; }
+  if (ps) ps.value = h.pathStyle;
+}
+
 // ══════════════════════════════════════
 // BACKUPS
 // ══════════════════════════════════════
@@ -660,7 +693,7 @@ async function showBackupLog(backupId) {
   } catch (err) { alert('Error loading logs: ' + err.message); }
 }
 
-function showRunBackupModal() {
+async function showRunBackupModal() {
   const connOptions = state.connections.length > 0
     ? state.connections.map(c => `<option value="${c.id}">${escHtml(c.name)} (${c.db_type})</option>`).join('')
     : '<option value="">No connections — add one first</option>';
@@ -670,6 +703,25 @@ function showRunBackupModal() {
     storageOptions += state.storageProviders.map(p =>
       `<option value="${p.id}">${escHtml(p.name)} (${p.provider_type})${p.is_default ? ' ★' : ''}</option>`
     ).join('');
+  }
+
+  // Build notification target checkboxes
+  let notifOptions = '';
+  let notifs = [];
+  try {
+    notifs = await API.get('/api/notifications');
+    if (notifs.length > 0) {
+      notifOptions = notifs.map(n =>
+        `<label class="checkbox-label" style="margin-right:12px;">
+          <input type="checkbox" class="notif-target-chk" value="${n.id}" checked>
+          ${escHtml(n.name)} (${n.notif_type})
+        </label>`
+      ).join('');
+    } else {
+      notifOptions = '<p style="color:var(--text-muted);font-size:13px;">No notification targets — <a href="#" onclick="navigate(\'notifications\');return false;">add one in Notifications</a></p>';
+    }
+  } catch (err) {
+    notifOptions = '<p style="color:var(--text-muted);font-size:13px;">Error loading notification targets</p>';
   }
 
   showModal('Run Backup', `
@@ -694,16 +746,38 @@ function showRunBackupModal() {
         <select class="form-select" id="modal-run-storage">${storageOptions}</select>
       </div>
     </div>
+    <div class="form-group" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
+      <label class="form-label">Notifications</label>
+      <div style="margin-bottom:8px;">
+        <label class="checkbox-label" style="margin-right:12px;">
+          <input type="checkbox" id="modal-run-notif-success" checked> On success
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="modal-run-notif-failure" checked> On failure
+        </label>
+      </div>
+      <div>${notifOptions}</div>
+    </div>
   `, async () => {
     const connId = document.getElementById('modal-run-conn').value;
     if (!connId) { alert('Please select a connection'); return false; }
     const dbId = document.getElementById('modal-run-db').value;
     const type = document.getElementById('modal-run-type').value;
     const storageId = document.getElementById('modal-run-storage').value;
+    
+    // Collect selected notification targets
+    const notifTargetIds = [];
+    document.querySelectorAll('.notif-target-chk:checked').forEach(cb => notifTargetIds.push(cb.value));
+    const notifOnSuccess = document.getElementById('modal-run-notif-success').checked;
+    const notifOnFailure = document.getElementById('modal-run-notif-failure').checked;
+
     try {
       await API.post('/api/backups', {
         connection_id: connId, database_id: dbId, backup_type: type,
-        storage_provider_id: storageId || undefined
+        storage_provider_id: storageId || undefined,
+        notif_target_ids: notifTargetIds,
+        notify_on_success: notifOnSuccess,
+        notify_on_failure: notifOnFailure
       });
       alert('Backup started!');
       navigate('backups');
@@ -839,7 +913,16 @@ async function renderSchedules(el) {
   lucide.createIcons();
 }
 
-function showAddScheduleModal() {
+function updateScheduleRetention() {
+  const type = document.getElementById('modal-sched-type')?.value;
+  const fullGroup = document.getElementById('sched-ret-full-group');
+  const incrGroup = document.getElementById('sched-ret-incr-group');
+  if (!fullGroup || !incrGroup) return;
+  fullGroup.style.display = type === 'full' ? '' : 'none';
+  incrGroup.style.display = type === 'incremental' ? '' : 'none';
+}
+
+async function showAddScheduleModal() {
   const connOptions = state.connections.map(c =>
     `<option value="${c.id}">${escHtml(c.name)} (${c.db_type})</option>`
   ).join('');
@@ -851,6 +934,25 @@ function showAddScheduleModal() {
     ).join('');
   } else {
     storageOptions = '<option value="">⚠️ No providers — add one in Storage page</option>';
+  }
+
+  // Build notification target checkboxes
+  let notifOptions = '';
+  let notifs = [];
+  try {
+    notifs = await API.get('/api/notifications');
+    if (notifs.length > 0) {
+      notifOptions = notifs.map(n =>
+        `<label class="checkbox-label" style="margin-right:12px;">
+          <input type="checkbox" class="sched-notif-chk" value="${n.id}" checked>
+          ${escHtml(n.name)} (${n.notif_type})
+        </label>`
+      ).join('');
+    } else {
+      notifOptions = '<p style="color:var(--text-muted);font-size:13px;">No notification targets — <a href="#" onclick="navigate(\'notifications\');return false;">add one in Notifications</a></p>';
+    }
+  } catch (err) {
+    notifOptions = '<p style="color:var(--text-muted);font-size:13px;">Error loading notification targets</p>';
   }
 
   showModal('Add Schedule', `
@@ -865,7 +967,7 @@ function showAddScheduleModal() {
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Backup Type</label>
-        <select class="form-select" id="modal-sched-type">
+        <select class="form-select" id="modal-sched-type" onchange="updateScheduleRetention()">
           <option value="full">Full</option>
           <option value="incremental">Incremental</option>
         </select>
@@ -880,14 +982,26 @@ function showAddScheduleModal() {
       <select class="form-select" id="modal-sched-storage">${storageOptions}</select>
     </div>
     <div class="form-row">
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Retention (full days)</label>
-        <input class="form-input" type="number" id="modal-sched-ret-full" value="7">
+      <div class="form-group" style="flex:1" id="sched-ret-full-group">
+        <label class="form-label">Retention (days)</label>
+        <input class="form-input" type="number" id="modal-sched-ret-full" value="7" min="1">
       </div>
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Retention (incr days)</label>
-        <input class="form-input" type="number" id="modal-sched-ret-incr" value="30">
+      <div class="form-group" style="flex:1;display:none" id="sched-ret-incr-group">
+        <label class="form-label">Retention (days)</label>
+        <input class="form-input" type="number" id="modal-sched-ret-incr" value="30" min="1">
       </div>
+    </div>
+    <div class="form-group" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
+      <label class="form-label">Notifications</label>
+      <div style="margin-bottom:8px;">
+        <label class="checkbox-label" style="margin-right:12px;">
+          <input type="checkbox" id="modal-sched-notif-success" checked> On success
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="modal-sched-notif-failure" checked> On failure
+        </label>
+      </div>
+      <div>${notifOptions}</div>
     </div>
   `, async () => {
     const connId = document.getElementById('modal-sched-conn').value;
@@ -899,12 +1013,22 @@ function showAddScheduleModal() {
     const retIncr = parseInt(document.getElementById('modal-sched-ret-incr').value) || 30;
     if (!connId || !dbId) { alert('Connection and Database are required'); return false; }
     if (!storageId) { alert('Storage Provider is required'); return false; }
+
+    // Collect selected notification targets
+    const notifTargetIds = [];
+    document.querySelectorAll('.sched-notif-chk:checked').forEach(cb => notifTargetIds.push(cb.value));
+    const notifOnSuccess = document.getElementById('modal-sched-notif-success').checked;
+    const notifOnFailure = document.getElementById('modal-sched-notif-failure').checked;
+
     try {
       await API.post('/api/schedules', {
         connection_id: connId, database_id: dbId,
         backup_type: type, cron_expr: cron,
         storage_provider_id: storageId,
-        retention_full: retFull, retention_incr: retIncr
+        retention_full: retFull, retention_incr: retIncr,
+        notif_target_ids: notifTargetIds,
+        notify_on_success: notifOnSuccess,
+        notify_on_failure: notifOnFailure
       });
       navigate('schedules');
     } catch (err) { alert('Error: ' + err.message); return false; }
@@ -995,7 +1119,7 @@ function showAddStorageModal() {
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Type</label>
-        <select class="form-select" id="modal-stor-type">
+        <select class="form-select" id="modal-stor-type" onchange="updateStoragePlaceholders()">
           <option value="s3">AWS S3</option>
           <option value="r2">Cloudflare R2</option>
           <option value="minio">MinIO</option>
@@ -1006,7 +1130,7 @@ function showAddStorageModal() {
       </div>
       <div class="form-group" style="flex:1">
         <label class="form-label">Region</label>
-        <input class="form-input" id="modal-stor-region" value="auto" placeholder="us-east-1">
+        <input class="form-input" id="modal-stor-region" placeholder="us-east-1">
       </div>
     </div>
     <div class="form-group">
@@ -1195,47 +1319,273 @@ async function deleteStorage(id) {
 // ══════════════════════════════════════
 // SETTINGS
 // ══════════════════════════════════════
-function renderSettings(el) {
+async function renderSettings(el) {
   const theme = document.documentElement.getAttribute('data-theme') || 'dark';
   el.innerHTML = `
     <div class="page-header">
       <h1>Settings</h1>
       <p>Application configuration</p>
     </div>
-    <div class="card" style="max-width:500px">
-      <div class="card-header"><h2>Preferences</h2></div>
-      <div class="card-body">
-        <div class="form-group">
-          <label class="form-label">Theme</label>
-          <div style="display:flex;align-items:center;gap:var(--space-md);">
-            <select class="form-select" onchange="setTheme(this.value)" style="width:auto;flex:1;">
-              <option value="dark" ${theme === 'dark' ? 'selected' : ''}>Dark</option>
-              <option value="light" ${theme === 'light' ? 'selected' : ''}>Light</option>
+
+    <div class="settings-grid">
+      <!-- Preferences -->
+      <div class="card">
+        <div class="card-header"><h2>Preferences</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Theme</label>
+            <div style="display:flex;align-items:center;gap:var(--space-md);">
+              <select class="form-select" onchange="setTheme(this.value)" style="width:auto;flex:1;">
+                <option value="dark" ${theme === 'dark' ? 'selected' : ''}>Dark</option>
+                <option value="light" ${theme === 'light' ? 'selected' : ''}>Light</option>
+              </select>
+              <button class="theme-toggle" onclick="toggleTheme()">
+                <i class="theme-icon" data-lucide="\${theme === 'dark' ? 'sun' : 'moon'}" size="15"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Timezone</label>
+            <select class="form-select" id="setting-timezone">
+              <option value="UTC">UTC</option>
+              <option value="Asia/Jakarta">Asia/Jakarta (WIB)</option>
+              <option value="Asia/Makassar">Asia/Makassar (WITA)</option>
+              <option value="Asia/Jayapura">Asia/Jayapura (WIT)</option>
+              <option value="America/New_York">America/New_York</option>
+              <option value="America/Chicago">America/Chicago</option>
+              <option value="America/Denver">America/Denver</option>
+              <option value="America/Los_Angeles">America/Los_Angeles</option>
+              <option value="Europe/London">Europe/London</option>
+              <option value="Europe/Berlin">Europe/Berlin</option>
+              <option value="Asia/Tokyo">Asia/Tokyo</option>
+              <option value="Asia/Singapore">Asia/Singapore</option>
             </select>
-            <button class="theme-toggle" onclick="toggleTheme()">
-              <i class="theme-icon" data-lucide="${theme === 'dark' ? 'sun' : 'moon'}" size="15"></i>
-            </button>
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Encryption</label>
-          <p class="form-help" id="encrypt-status">Checking encryption status...</p>
+      </div>
+
+      <!-- Defaults -->
+      <div class="card">
+        <div class="card-header"><h2>Default Settings</h2></div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Retention (full backup days)</label>
+              <input class="form-input" type="number" id="setting-ret-full" min="1" max="365">
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Retention (incremental days)</label>
+              <input class="form-input" type="number" id="setting-ret-incr" min="1" max="365">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Concurrent Backups</label>
+              <input class="form-input" type="number" id="setting-concurrent" min="1" max="10">
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Compression</label>
+              <select class="form-select" id="setting-compression">
+                <option value="gzip">Gzip</option>
+                <option value="zstd">Zstandard (zstd)</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Notify on Success (default)</label>
+              <select class="form-select" id="setting-notif-success">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1">
+              <label class="form-label">Notify on Failure (default)</label>
+              <select class="form-select" id="setting-notif-failure">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveSettings()" style="margin-top:8px;">
+            <i data-lucide="save" size="14"></i> Save Defaults
+          </button>
+          <span id="settings-save-msg" style="margin-left:12px;font-size:13px;color:var(--success);"></span>
         </div>
-        <div class="form-group">
-          <label class="form-label">Version</label>
-          <input class="form-input" value="v0.2.0" disabled>
+      </div>
+
+      <!-- Security -->
+      <div class="card">
+        <div class="card-header"><h2>Security</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Encryption</label>
+            <p class="form-help" id="encrypt-status">Checking encryption status...</p>
+          </div>
+          <div class="settings-divider"></div>
+          <div class="form-group">
+            <label class="form-label">Change Password</label>
+            <div class="form-group">
+              <input class="form-input" type="password" id="setting-current-pass" placeholder="Current password">
+            </div>
+            <div class="form-group">
+              <input class="form-input" type="password" id="setting-new-pass" placeholder="New password (min. 6 chars)">
+            </div>
+            <button class="btn btn-primary" onclick="changePassword()">
+              <i data-lucide="lock" size="14"></i> Change Password
+            </button>
+            <span id="password-msg" style="margin-left:12px;font-size:13px;"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- About -->
+      <div class="card">
+        <div class="card-header"><h2>About</h2></div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Version</label>
+            <input class="form-input" id="setting-version" value="..." disabled>
+          </div>
+          <p style="color:var(--text-tertiary);font-size:12px;margin-top:8px;">
+            Backupeer — PostgreSQL · MySQL · MariaDB backup manager.
+          </p>
         </div>
       </div>
     </div>
   `;
   lucide.createIcons();
 
+  // Load settings
+  try {
+    const settings = await API.get('/api/settings');
+    if (settings.retention_full_default) document.getElementById('setting-ret-full').value = settings.retention_full_default;
+    if (settings.retention_incr_default) document.getElementById('setting-ret-incr').value = settings.retention_incr_default;
+    if (settings.concurrent_backups) document.getElementById('setting-concurrent').value = settings.concurrent_backups;
+    if (settings.compression) document.getElementById('setting-compression').value = settings.compression;
+    if (settings.timezone) document.getElementById('setting-timezone').value = settings.timezone;
+    if (settings.notify_on_success) document.getElementById('setting-notif-success').value = settings.notify_on_success;
+    if (settings.notify_on_failure) document.getElementById('setting-notif-failure').value = settings.notify_on_failure;
+    if (settings.version) document.getElementById('setting-version').value = settings.version;
+  } catch (err) {
+    console.error('Failed to load settings:', err);
+  }
+
+  // Check encryption
   API.get('/api/health').then(h => {
     document.getElementById('encrypt-status').textContent =
       h.encryption ? '✅ AES-256-GCM enabled' : '⚠️ Not configured (set BACKUPEER_ENCRYPTION_KEY)';
   }).catch(() => {
     document.getElementById('encrypt-status').textContent = '⚠️ Unknown';
   });
+}
+
+async function saveSettings() {
+  const settings = {
+    retention_full_default: document.getElementById('setting-ret-full').value || '7',
+    retention_incr_default: document.getElementById('setting-ret-incr').value || '30',
+    concurrent_backups: document.getElementById('setting-concurrent').value || '2',
+    compression: document.getElementById('setting-compression').value,
+    timezone: document.getElementById('setting-timezone').value,
+    notify_on_success: document.getElementById('setting-notif-success').value,
+    notify_on_failure: document.getElementById('setting-notif-failure').value,
+  };
+  try {
+    await API.put('/api/settings', settings);
+    const msg = document.getElementById('settings-save-msg');
+    msg.textContent = '✅ Settings saved';
+    setTimeout(() => msg.textContent = '', 3000);
+  } catch (err) {
+    alert('Error saving settings: ' + err.message);
+  }
+}
+
+async function changePassword() {
+  const current = document.getElementById('setting-current-pass').value;
+  const newPass = document.getElementById('setting-new-pass').value;
+  const msg = document.getElementById('password-msg');
+
+  if (!current || !newPass) {
+    msg.textContent = '⚠️ Fill both fields';
+    msg.style.color = 'var(--error)';
+    return;
+  }
+  if (newPass.length < 6) {
+    msg.textContent = '⚠️ Min 6 characters';
+    msg.style.color = 'var(--error)';
+    return;
+  }
+
+  try {
+    await API.put('/api/auth/password', { current_password: current, new_password: newPass });
+    msg.textContent = '✅ Password changed! Please login again.';
+    msg.style.color = 'var(--success)';
+    document.getElementById('setting-current-pass').value = '';
+    document.getElementById('setting-new-pass').value = '';
+    setTimeout(() => renderLogin(), 2000);
+  } catch (err) {
+    msg.textContent = '❌ ' + err.message;
+    msg.style.color = 'var(--error)';
+  }
+}
+
+// ══════════════════════════════════════
+// RESTORES
+// ══════════════════════════════════════
+async function renderRestores(el) {
+  el.innerHTML = `
+    <div class="page-header">
+      <h1>Restores</h1>
+      <p>Restore history from backups</p>
+    </div>
+    <div class="card">
+      <div class="table-container">
+        <table>
+          <thead><tr><th>Backup ID</th><th>Target</th><th>Status</th><th>Duration</th><th>Created</th><th>Actions</th></tr></thead>
+          <tbody id="restore-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  try {
+    const restores = await API.get('/api/restores') || [];
+    const tbody = document.getElementById('restore-table-body');
+    if (restores.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No restore operations yet — restore a backup from the Backups page</p></div></td></tr>';
+    } else {
+      tbody.innerHTML = restores.map(r => {
+        const statusClass = r.status === 'success' ? 'success' : r.status === 'failed' ? 'failed' : 'running';
+        return `<tr class="status-${statusClass}">
+          <td class="mono" title="${r.backup_id}">${(r.backup_id || '').slice(0,8)}</td>
+          <td style="color:var(--text-secondary);">${r.target_connection ? r.target_connection.slice(0,8) : 'Original'}</td>
+          <td><span class="status-pill ${statusPill(r.status)}">${r.status || '—'}</span></td>
+          <td class="mono">${r.duration_ms ? (r.duration_ms/1000).toFixed(1)+'s' : '—'}</td>
+          <td style="color:var(--text-tertiary);font-size:12px;">${r.created_at ? new Date(r.created_at).toLocaleString() : '—'}</td>
+          <td>
+            <button class="btn btn-sm" onclick="showRestoreLog('${r.id}')" title="View logs"><i data-lucide="file-text" size="13"></i></button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+  } catch (err) {
+    document.getElementById('restore-table-body').innerHTML = `<tr><td colspan="6" style="color:var(--error);padding:20px;">Error: ${escHtml(err.message)}</td></tr>`;
+  }
+  lucide.createIcons();
+}
+
+async function showRestoreLog(restoreId) {
+  try {
+    const data = await API.get(`/api/restores/${restoreId}`);
+    showModal(`Restore Log: ${restoreId.slice(0,8)}`, `
+      <p style="margin-bottom:8px;color:var(--text-secondary);font-size:13px;">
+        Status: <strong>${data.status}</strong> &middot;
+        Duration: <strong>${data.duration_ms ? (data.duration_ms/1000).toFixed(1)+'s' : '—'}</strong>
+      </p>
+      <pre class="log-viewer">${escHtml(data.log_output || data.log || 'No log output')}</pre>
+    `);
+  } catch (err) { alert('Error loading restore log: ' + err.message); }
 }
 
 // ══════════════════════════════════════
@@ -1309,8 +1659,8 @@ function cronHuman(expr) {
 async function renderNotifications(el) {
   el.innerHTML = `
     <div class="page-header">
-      <h1>Notifications</h1>
-      <p>Configure Telegram, Discord, and Slack notification channels</p>
+      <h1>Notification Targets</h1>
+      <p>Configure Telegram, Discord, and Slack notification channels — then select them when running backups or creating schedules</p>
     </div>
     <div style="margin-bottom:var(--space-lg);">
       <button class="btn btn-primary" onclick="showAddNotifModal()">+ Add Channel</button>
@@ -1318,7 +1668,7 @@ async function renderNotifications(el) {
     <div class="card">
       <div class="table-container">
         <table>
-          <thead><tr><th>Name</th><th>Type</th><th>Success</th><th>Failure</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Name</th><th>Type</th><th>Actions</th></tr></thead>
           <tbody id="notif-table-body"></tbody>
         </table>
       </div>
@@ -1329,7 +1679,7 @@ async function renderNotifications(el) {
     const notifs = await API.get('/api/notifications');
     const tbody = document.getElementById('notif-table-body');
     if (notifs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>No notification channels configured</p></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state"><p>No notification channels configured — add one first</p></div></td></tr>';
     } else {
       tbody.innerHTML = notifs.map(n => {
         const typeIcons = { telegram: 'send', discord: 'message-circle', slack: 'message-square' };
@@ -1337,9 +1687,6 @@ async function renderNotifications(el) {
         return `<tr>
           <td><strong style="color:var(--text-primary);">${escHtml(n.name)}</strong></td>
           <td><div class="config-item-icon" style="width:28px;height:28px;font-size:10px;display:inline-flex;"><i data-lucide="${typeIcon}" size="14"></i></div> ${n.notif_type.charAt(0).toUpperCase() + n.notif_type.slice(1)}</td>
-          <td>${n.notify_on_success ? '<span class="badge badge-success">Notify</span>' : '<span class="badge" style="background:var(--surface-3);color:var(--text-muted);">Silent</span>'}</td>
-          <td>${n.notify_on_failure ? '<span class="badge badge-warning">Notify</span>' : '<span class="badge" style="background:var(--surface-3);color:var(--text-muted);">Silent</span>'}</td>
-          <td>${n.enabled ? '<span class="badge badge-success">Active</span>' : '<span class="badge" style="background:var(--surface-3);color:var(--text-muted);">Disabled</span>'}</td>
           <td>
             <button class="btn btn-sm" onclick="testNotif('${n.id}')" title="Test"><i data-lucide="zap" size="13"></i></button>
             <button class="btn btn-sm" onclick="showEditNotifModal('${n.id}')" title="Edit"><i data-lucide="pencil" size="13"></i></button>
@@ -1349,7 +1696,7 @@ async function renderNotifications(el) {
       }).join('');
     }
   } catch (err) {
-    document.getElementById('notif-table-body').innerHTML = '<tr><td colspan="6" style="color:var(--error);padding:20px;">Error: ' + escHtml(err.message) + '</td></tr>';
+    document.getElementById('notif-table-body').innerHTML = '<tr><td colspan="3" style="color:var(--error);padding:20px;">Error: ' + escHtml(err.message) + '</td></tr>';
   }
   lucide.createIcons();
 }
@@ -1382,28 +1729,10 @@ function showAddNotifModal() {
         <input class="form-input" id="modal-notif-webhook" placeholder="https://hooks.example.com/...">
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Notify on</label>
-        <label class="checkbox-label" style="margin-top:8px;">
-          <input type="checkbox" id="modal-notif-success" checked> Backup success
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="modal-notif-failure" checked> Backup failure
-        </label>
-      </div>
-      <div class="form-group" style="flex:1;padding-top:22px">
-        <label class="checkbox-label">
-          <input type="checkbox" id="modal-notif-enabled" checked> Enabled
-        </label>
-      </div>
-    </div>
+    <p style="color:var(--text-secondary);font-size:13px;margin-top:8px;">Notification targets are selected per-backup or per-schedule</p>
   `, async () => {
     const name = document.getElementById('modal-notif-name').value;
     const type = document.getElementById('modal-notif-type').value;
-    const success = document.getElementById('modal-notif-success').checked;
-    const failure = document.getElementById('modal-notif-failure').checked;
-    const enabled = document.getElementById('modal-notif-enabled').checked;
 
     let configJson = {};
     if (type === 'telegram') {
@@ -1421,8 +1750,7 @@ function showAddNotifModal() {
 
     try {
       await API.post('/api/notifications', {
-        name, notif_type: type, config_json: JSON.stringify(configJson),
-        notify_on_success: success, notify_on_failure: failure, enabled
+        name, notif_type: type, config_json: JSON.stringify(configJson)
       });
       renderNotifications(document.getElementById('page-content'));
     } catch (err) { alert('Error: ' + err.message); return false; }
@@ -1447,11 +1775,6 @@ function toggleNotifFields() {
 }
 
 async function testNotif(id) {
-  let notif;
-  try {
-    notif = await API.get('/api/notifications/' + id);
-  } catch (err) { alert('Error loading notification: ' + err.message); return; }
-
   const btn = event.target.closest('button');
   const original = btn.innerHTML;
   btn.innerHTML = '<i data-lucide="loader" size="13" class="loading-spinner"></i>';
@@ -1459,10 +1782,7 @@ async function testNotif(id) {
   lucide.createIcons();
 
   try {
-    await API.post('/api/notifications/test', {
-      notif_type: notif.notif_type,
-      config_json: notif.config_json
-    });
+    await API.post('/api/notifications/' + id + '/test');
     alert('Test notification sent!');
   } catch (err) {
     alert('Test failed: ' + err.message);
@@ -1513,28 +1833,10 @@ async function showEditNotifModal(id) {
         <input class="form-input" id="modal-notif-webhook" value="${escHtml(webhook)}" placeholder="Keep existing">
       </div>
     </div>
-    <div class="form-row">
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Notify on</label>
-        <label class="checkbox-label" style="margin-top:8px;">
-          <input type="checkbox" id="modal-notif-success" ${notif.notify_on_success ? 'checked' : ''}> Backup success
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="modal-notif-failure" ${notif.notify_on_failure ? 'checked' : ''}> Backup failure
-        </label>
-      </div>
-      <div class="form-group" style="flex:1;padding-top:22px">
-        <label class="checkbox-label">
-          <input type="checkbox" id="modal-notif-enabled" ${notif.enabled ? 'checked' : ''}> Enabled
-        </label>
-      </div>
-    </div>
+    <p style="color:var(--text-secondary);font-size:13px;margin-top:8px;">Notification targets are selected per-backup or per-schedule</p>
   `, async () => {
     const name = document.getElementById('modal-notif-name').value;
     const type = document.getElementById('modal-notif-type').value;
-    const success = document.getElementById('modal-notif-success').checked;
-    const failure = document.getElementById('modal-notif-failure').checked;
-    const enabled = document.getElementById('modal-notif-enabled').checked;
 
     let configJson = {};
     if (type === 'telegram') {
@@ -1550,8 +1852,7 @@ async function showEditNotifModal(id) {
 
     try {
       await API.put('/api/notifications/' + id, {
-        name, notif_type: type, config_json: JSON.stringify(configJson),
-        notify_on_success: success, notify_on_failure: failure, enabled
+        name, notif_type: type, config_json: JSON.stringify(configJson)
       });
       renderNotifications(document.getElementById('page-content'));
     } catch (err) { alert('Error: ' + err.message); return false; }

@@ -97,18 +97,31 @@ func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		ConnectionID      string  `json:"connection_id"`
-		DatabaseID        string  `json:"database_id"`
-		BackupType        string  `json:"backup_type"`
-		ScheduleID        *string `json:"schedule_id,omitempty"`
-		StorageProviderID *string `json:"storage_provider_id,omitempty"`
+		ConnectionID        string   `json:"connection_id"`
+		DatabaseID          string   `json:"database_id"`
+		BackupType          string   `json:"backup_type"`
+		ScheduleID          *string  `json:"schedule_id,omitempty"`
+		StorageProviderID   *string  `json:"storage_provider_id,omitempty"`
+		NotifTargetIDs      []string `json:"notif_target_ids,omitempty"`
+		NotifyOnSuccess     *bool    `json:"notify_on_success,omitempty"`
+		NotifyOnFailure     *bool    `json:"notify_on_failure,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	b, err := h.svc.StartBackup(req.ConnectionID, req.DatabaseID, req.BackupType, req.ScheduleID, req.StorageProviderID)
+	// Default notification settings
+	notifOnSuccess := true
+	notifOnFailure := true
+	if req.NotifyOnSuccess != nil {
+		notifOnSuccess = *req.NotifyOnSuccess
+	}
+	if req.NotifyOnFailure != nil {
+		notifOnFailure = *req.NotifyOnFailure
+	}
+
+	b, err := h.svc.StartBackup(req.ConnectionID, req.DatabaseID, req.BackupType, req.ScheduleID, req.StorageProviderID, req.NotifTargetIDs, notifOnSuccess, notifOnFailure)
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, err.Error())
 		return

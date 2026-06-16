@@ -4,6 +4,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -209,6 +210,90 @@ func migrate(db *sql.DB) error {
 		}
 		if err := markApplied(2); err != nil {
 			return fmt.Errorf("migrate-2: mark applied: %w", err)
+		}
+	}
+
+	// Migration 3: simplify notifications table — remove notify_on_success, notify_on_failure, enabled
+	if !applied(3) {
+		_, err = db.Exec(`PRAGMA foreign_keys=OFF`)
+		if err != nil {
+			return err
+		}
+
+		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS notifications_v3 (
+			id              TEXT PRIMARY KEY,
+			name            TEXT NOT NULL,
+			notif_type      TEXT NOT NULL CHECK(notif_type IN ('telegram', 'discord', 'slack')),
+			config_json     TEXT NOT NULL,
+			created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`)
+		if err != nil {
+			return fmt.Errorf("migrate-3: create v3: %w", err)
+		}
+
+		// Migrate data (drop extra columns, keep only the columns that exist in v3)
+		_, _ = db.Exec(`INSERT OR IGNORE INTO notifications_v3 (id, name, notif_type, config_json, created_at, updated_at) SELECT id, name, notif_type, config_json, created_at, updated_at FROM notifications`)
+		_, _ = db.Exec(`DROP TABLE IF EXISTS notifications_old`)
+		_, _ = db.Exec(`ALTER TABLE notifications RENAME TO notifications_old`)
+		_, _ = db.Exec(`ALTER TABLE notifications_v3 RENAME TO notifications`)
+		_, _ = db.Exec(`DROP TABLE IF EXISTS notifications_old`)
+		_, _ = db.Exec(`PRAGMA foreign_keys=ON`)
+
+		if err := markApplied(3); err != nil {
+			return fmt.Errorf("migrate-3: mark applied: %w", err)
+		}
+	}
+
+	// Migration 4: add notification columns to backups and schedules
+	if !applied(4) {
+		alts := []string{
+			`ALTER TABLE backups ADD COLUMN notif_target_ids TEXT DEFAULT '[]'`,
+			`ALTER TABLE backups ADD COLUMN notify_on_success INTEGER DEFAULT 1`,
+			`ALTER TABLE backups ADD COLUMN notify_on_failure INTEGER DEFAULT 1`,
+			`ALTER TABLE schedules ADD COLUMN notif_target_ids TEXT DEFAULT '[]'`,
+			`ALTER TABLE schedules ADD COLUMN notify_on_success INTEGER DEFAULT 1`,
+			`ALTER TABLE schedules ADD COLUMN notify_on_failure INTEGER DEFAULT 1`,
+		}
+		for _, alt := range alts {
+			if _, err := db.Exec(alt); err != nil && strings.Contains(err.Error(), "duplicate column name") {
+				// column already exists — that's fine
+			} else if err != nil {
+				return fmt.Errorf("migrate-4: %s: %w", alt[:60], err)
+			}
+		}
+
+		if err := markApplied(4); err != nil {
+			return fmt.Errorf("migrate-4: mark applied: %w", err)
+		}
+	}
+
+	// Migration 5: app settings table
+	if !applied(5) {
+		_, err := db.Exec(`CREATE TABLE IF NOT EXISTS app_settings (
+			key   TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)`)
+		if err != nil {
+			return fmt.Errorf("migrate-5: create app_settings: %w", err)
+		}
+
+		// Seed defaults
+		defaults := map[string]string{
+			"retention_full_default":  "7",
+			"retention_incr_default":  "30",
+			"concurrent_backups":      "2",
+			"compression":             "gzip",
+			"timezone":                "UTC",
+			"notify_on_success":       "true",
+			"notify_on_failure":       "true",
+		}
+		for k, v := range defaults {
+			_, _ = db.Exec(`INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)`, k, v)
+		}
+
+		if err := markApplied(5); err != nil {
+			return fmt.Errorf("migrate-5: mark applied: %w", err)
 		}
 	}
 

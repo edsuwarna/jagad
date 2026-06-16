@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -89,6 +90,25 @@ func (s *Service) Logout(token string) {
 	s.mu.Lock()
 	delete(s.sessions, token)
 	s.mu.Unlock()
+}
+
+// ChangePassword changes the admin password. Returns an error if the current password doesn't match.
+func (s *Service) ChangePassword(currentPass, newPass string) error {
+	h := sha256.Sum256([]byte(currentPass))
+	if hex.EncodeToString(h[:]) != s.adminPass {
+		return fmt.Errorf("current password is incorrect")
+	}
+	if len(newPass) < 6 {
+		return fmt.Errorf("new password must be at least 6 characters")
+	}
+
+	h = sha256.Sum256([]byte(newPass))
+	s.mu.Lock()
+	s.adminPass = hex.EncodeToString(h[:])
+	// Invalidate all existing sessions so user must re-login
+	s.sessions = make(map[string]sessionInfo)
+	s.mu.Unlock()
+	return nil
 }
 
 // Middleware returns an HTTP handler that checks authentication.
@@ -194,6 +214,32 @@ func (s *Service) HandleCheck(w http.ResponseWriter, r *http.Request) {
 		"user":   sess.User,
 		"expires": sess.ExpiresAt.Format(time.RFC3339),
 	})
+}
+
+// HandleChangePassword handles PUT /api/auth/password.
+func (s *Service) HandleChangePassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		return
+	}
+
+	if err := s.ChangePassword(req.CurrentPassword, req.NewPassword); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Clear the session cookie so user must re-login
+	http.SetCookie(w, &http.Cookie{
+		Name:   "session",
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
+	})
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
 func decodeJSON(r *http.Request, v interface{}) error {

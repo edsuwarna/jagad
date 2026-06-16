@@ -22,7 +22,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/notifications/{id}", h.handleGet)
 	mux.HandleFunc("PUT /api/notifications/{id}", h.handleUpdate)
 	mux.HandleFunc("DELETE /api/notifications/{id}", h.handleDelete)
-	mux.HandleFunc("POST /api/notifications/test", h.handleTest)
+	mux.HandleFunc("POST /api/notifications/{id}/test", h.handleTest)
 }
 
 func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
@@ -107,16 +107,19 @@ func (h *Handler) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 // handleTest sends a test notification to verify the channel works.
 func (h *Handler) handleTest(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		NotifType  string `json:"notif_type"`
-		ConfigJSON string `json:"config_json"`
+	id := r.PathValue("id")
+
+	n, err := h.svc.repo.GetByID(id)
+	if err != nil {
+		httputil.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteError(w, http.StatusBadRequest, "invalid request body")
+	if n == nil {
+		httputil.WriteError(w, http.StatusNotFound, "notification not found")
 		return
 	}
 
-	h.svc.NotifyBackupResult("test", "test-db", req.NotifType, "success", 1048576, 5000, "Backup completed successfully")
+	h.svc.NotifyBackupResult([]string{id}, n.ID, "test-db", "test", "success", 1048576, 5000, "Test notification from Backupeer")
 
 	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "sent"})
 }

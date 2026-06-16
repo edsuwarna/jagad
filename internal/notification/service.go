@@ -26,22 +26,12 @@ func NewService(repo NotificationRepository) *Service {
 	}
 }
 
-// NotifyBackupResult sends notifications about a backup result to all enabled channels.
-func (s *Service) NotifyBackupResult(backupID, dbName, dbType, status string, sizeBytes int64, durationMs int64, logTail string) {
-	notifs, err := s.repo.List()
-	if err != nil {
-		fmt.Printf("[notify] ERROR listing notifications: %v\n", err)
-		return
-	}
-
-	for _, n := range notifs {
-		if !n.Enabled {
-			continue
-		}
-		if status == "success" && !n.NotifyOnSuccess {
-			continue
-		}
-		if status == "failed" && !n.NotifyOnFailure {
+// NotifyBackupResult sends notifications about a backup result to specified target channels.
+func (s *Service) NotifyBackupResult(targetIDs []string, backupID, dbName, dbType, status string, sizeBytes int64, durationMs int64, logTail string) {
+	for _, id := range targetIDs {
+		n, err := s.repo.GetByID(id)
+		if err != nil || n == nil {
+			fmt.Printf("[notify] target %s not found (err=%v), skipping\n", id, err)
 			continue
 		}
 

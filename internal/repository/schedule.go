@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -18,10 +19,12 @@ func NewScheduleRepo(db *sql.DB) *ScheduleRepo {
 	return &ScheduleRepo{db: db}
 }
 
+const scheduleCols = `id, connection_id, database_id, backup_type, cron_expr, storage_provider_id,
+	encryption_enabled, encryption_key_id, verify_enabled,
+	retention_full, retention_incr, notif_target_ids, notify_on_success, notify_on_failure, enabled, created_at`
+
 func (r *ScheduleRepo) List() ([]schedule.Schedule, error) {
-	rows, err := r.db.Query(`SELECT id, connection_id, database_id, backup_type, cron_expr, storage_provider_id,
-		encryption_enabled, encryption_key_id, verify_enabled,
-		retention_full, retention_incr, enabled, created_at FROM schedules ORDER BY created_at DESC`)
+	rows, err := r.db.Query(`SELECT ` + scheduleCols + ` FROM schedules ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("list schedules: %w", err)
 	}
@@ -39,9 +42,7 @@ func (r *ScheduleRepo) List() ([]schedule.Schedule, error) {
 }
 
 func (r *ScheduleRepo) ListByConnection(connectionID string) ([]schedule.Schedule, error) {
-	rows, err := r.db.Query(`SELECT id, connection_id, database_id, backup_type, cron_expr, storage_provider_id,
-		encryption_enabled, encryption_key_id, verify_enabled,
-		retention_full, retention_incr, enabled, created_at FROM schedules WHERE connection_id = ? ORDER BY created_at DESC`, connectionID)
+	rows, err := r.db.Query(`SELECT `+scheduleCols+` FROM schedules WHERE connection_id = ? ORDER BY created_at DESC`, connectionID)
 	if err != nil {
 		return nil, fmt.Errorf("list schedules by connection: %w", err)
 	}
@@ -60,13 +61,13 @@ func (r *ScheduleRepo) ListByConnection(connectionID string) ([]schedule.Schedul
 
 func (r *ScheduleRepo) GetByID(id string) (*schedule.Schedule, error) {
 	var s schedule.Schedule
-	var encryptionEnabled, verifyEnabled, enabled int
-	err := r.db.QueryRow(`SELECT id, connection_id, database_id, backup_type, cron_expr, storage_provider_id,
-		encryption_enabled, encryption_key_id, verify_enabled,
-		retention_full, retention_incr, enabled, created_at FROM schedules WHERE id = ?`, id).
+	var encryptionEnabled, verifyEnabled, enabled, notifOnSuccess, notifOnFailure int
+	var notifIDs string
+
+	err := r.db.QueryRow(`SELECT `+scheduleCols+` FROM schedules WHERE id = ?`, id).
 		Scan(&s.ID, &s.ConnectionID, &s.DatabaseID, &s.BackupType, &s.CronExpr,
 			&s.StorageProviderID, &encryptionEnabled, &s.EncryptionKeyID, &verifyEnabled,
-			&s.RetentionFull, &s.RetentionIncr, &enabled, &s.CreatedAt)
+			&s.RetentionFull, &s.RetentionIncr, &notifIDs, &notifOnSuccess, &notifOnFailure, &enabled, &s.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -76,6 +77,9 @@ func (r *ScheduleRepo) GetByID(id string) (*schedule.Schedule, error) {
 	s.EncryptionEnabled = encryptionEnabled == 1
 	s.VerifyEnabled = verifyEnabled == 1
 	s.Enabled = enabled == 1
+	s.NotifyOnSuccess = notifOnSuccess == 1
+	s.NotifyOnFailure = notifOnFailure == 1
+	json.Unmarshal([]byte(notifIDs), &s.NotifTargetIDs)
 	return &s, nil
 }
 
@@ -86,12 +90,15 @@ func (r *ScheduleRepo) Create(s *schedule.Schedule) error {
 	ee := boolToInt(s.EncryptionEnabled)
 	ve := boolToInt(s.VerifyEnabled)
 	en := boolToInt(s.Enabled)
+	nos := boolToInt(s.NotifyOnSuccess)
+	nof := boolToInt(s.NotifyOnFailure)
+	notifIDs := marshalStringSlice(s.NotifTargetIDs)
 
 	_, err := r.db.Exec(`INSERT INTO schedules (id, connection_id, database_id, backup_type, cron_expr, storage_provider_id,
 		encryption_enabled, encryption_key_id, verify_enabled,
-		retention_full, retention_incr, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		retention_full, retention_incr, notif_target_ids, notify_on_success, notify_on_failure, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.ID, s.ConnectionID, s.DatabaseID, s.BackupType, s.CronExpr, s.StorageProviderID,
-		ee, s.EncryptionKeyID, ve, s.RetentionFull, s.RetentionIncr, en, s.CreatedAt)
+		ee, s.EncryptionKeyID, ve, s.RetentionFull, s.RetentionIncr, notifIDs, nos, nof, en, s.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create schedule: %w", err)
 	}
@@ -102,12 +109,15 @@ func (r *ScheduleRepo) Update(s *schedule.Schedule) error {
 	ee := boolToInt(s.EncryptionEnabled)
 	ve := boolToInt(s.VerifyEnabled)
 	en := boolToInt(s.Enabled)
+	nos := boolToInt(s.NotifyOnSuccess)
+	nof := boolToInt(s.NotifyOnFailure)
+	notifIDs := marshalStringSlice(s.NotifTargetIDs)
 
 	_, err := r.db.Exec(`UPDATE schedules SET backup_type=?, cron_expr=?, storage_provider_id=?,
 		encryption_enabled=?, encryption_key_id=?, verify_enabled=?,
-		retention_full=?, retention_incr=?, enabled=? WHERE id=?`,
+		retention_full=?, retention_incr=?, notif_target_ids=?, notify_on_success=?, notify_on_failure=?, enabled=? WHERE id=?`,
 		s.BackupType, s.CronExpr, s.StorageProviderID,
-		ee, s.EncryptionKeyID, ve, s.RetentionFull, s.RetentionIncr, en, s.ID)
+		ee, s.EncryptionKeyID, ve, s.RetentionFull, s.RetentionIncr, notifIDs, nos, nof, en, s.ID)
 	if err != nil {
 		return fmt.Errorf("update schedule %s: %w", s.ID, err)
 	}
@@ -125,22 +135,19 @@ func (r *ScheduleRepo) Delete(id string) error {
 // scanSchedule scans a schedule row from rows iterator.
 func scanSchedule(rows *sql.Rows) (schedule.Schedule, error) {
 	var s schedule.Schedule
-	var encryptionEnabled, verifyEnabled, enabled int
+	var encryptionEnabled, verifyEnabled, enabled, notifOnSuccess, notifOnFailure int
+	var notifIDs string
 	err := rows.Scan(&s.ID, &s.ConnectionID, &s.DatabaseID, &s.BackupType, &s.CronExpr,
 		&s.StorageProviderID, &encryptionEnabled, &s.EncryptionKeyID, &verifyEnabled,
-		&s.RetentionFull, &s.RetentionIncr, &enabled, &s.CreatedAt)
+		&s.RetentionFull, &s.RetentionIncr, &notifIDs, &notifOnSuccess, &notifOnFailure, &enabled, &s.CreatedAt)
 	if err != nil {
 		return s, fmt.Errorf("scan schedule: %w", err)
 	}
 	s.EncryptionEnabled = encryptionEnabled == 1
 	s.VerifyEnabled = verifyEnabled == 1
 	s.Enabled = enabled == 1
+	s.NotifyOnSuccess = notifOnSuccess == 1
+	s.NotifyOnFailure = notifOnFailure == 1
+	json.Unmarshal([]byte(notifIDs), &s.NotifTargetIDs)
 	return s, nil
-}
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }

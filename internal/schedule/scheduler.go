@@ -12,7 +12,7 @@ import (
 
 // BackupRunner is an interface for the backup service to start backups and enforce retention.
 type BackupRunner interface {
-	StartBackup(connectionID, databaseID, backupType string, scheduleID *string, storageProviderID *string) (*backup.Backup, error)
+	StartBackup(connectionID, databaseID, backupType string, scheduleID *string, storageProviderID *string, notifTargetIDs []string, notifOnSuccess, notifOnFailure bool) (*backup.Backup, error)
 	EnforceRetention(scheduleID string, retentionFull, retentionIncr int)
 }
 
@@ -111,12 +111,12 @@ func (s *Scheduler) executeBackup(sch *Schedule) {
 
 	if sch.StorageProviderID != "" {
 		storageProvID := &sch.StorageProviderID
-		_, err := s.runner.StartBackup(sch.ConnectionID, sch.DatabaseID, sch.BackupType, &sch.ID, storageProvID)
+		_, err := s.runner.StartBackup(sch.ConnectionID, sch.DatabaseID, sch.BackupType, &sch.ID, storageProvID, sch.NotifTargetIDs, sch.NotifyOnSuccess, sch.NotifyOnFailure)
 		if err != nil {
 			fmt.Printf("[scheduler] ERROR running backup for schedule %s: %v\n", sch.ID, err)
 		}
 	} else {
-		_, err := s.runner.StartBackup(sch.ConnectionID, sch.DatabaseID, sch.BackupType, &sch.ID, nil)
+		_, err := s.runner.StartBackup(sch.ConnectionID, sch.DatabaseID, sch.BackupType, &sch.ID, nil, sch.NotifTargetIDs, sch.NotifyOnSuccess, sch.NotifyOnFailure)
 		if err != nil {
 			fmt.Printf("[scheduler] ERROR running backup for schedule %s: %v\n", sch.ID, err)
 		}

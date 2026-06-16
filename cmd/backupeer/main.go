@@ -23,6 +23,7 @@ import (
 	"github.com/edsuwarna/backupeer/internal/repository"
 	restsvc "github.com/edsuwarna/backupeer/internal/restore"
 	schsvc "github.com/edsuwarna/backupeer/internal/schedule"
+	"github.com/edsuwarna/backupeer/internal/settings"
 	"github.com/edsuwarna/backupeer/internal/storage"
 )
 
@@ -119,8 +120,12 @@ func main() {
 	// Initialize auth
 	authSvc := auth.NewService(cfg.AdminUser, cfg.AdminPass, cfg.SecretKey)
 
+	// Initialize settings
+	settingsSvc := settings.NewService(db)
+	settingsHandler := settings.NewHandler(settingsSvc, Version)
+
 	// Build api router (protected routes)
-	apiRouter := api.NewRouter(connHandler, backupHandler, scheduleHandler, restoreHandler, storageProvHandler, notifHandler)
+	apiRouter := api.NewRouter(connHandler, backupHandler, scheduleHandler, restoreHandler, storageProvHandler, notifHandler, settingsHandler)
 	protected := authSvc.Middleware(apiRouter.Handler())
 
 	// Top-level mux
@@ -130,6 +135,7 @@ func main() {
 	mux.HandleFunc("POST /api/auth/login", authSvc.HandleLogin)
 	mux.HandleFunc("POST /api/auth/logout", authSvc.HandleLogout)
 	mux.HandleFunc("GET /api/auth/check", authSvc.HandleCheck)
+	mux.HandleFunc("PUT /api/auth/password", authSvc.HandleChangePassword)
 
 	// Health (public)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {

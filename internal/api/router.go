@@ -9,6 +9,7 @@ import (
 	"github.com/edsuwarna/backupeer/internal/notification"
 	"github.com/edsuwarna/backupeer/internal/restore"
 	"github.com/edsuwarna/backupeer/internal/schedule"
+	"github.com/edsuwarna/backupeer/internal/settings"
 	"github.com/edsuwarna/backupeer/internal/storage"
 )
 
@@ -24,6 +25,7 @@ func NewRouter(
 	restoreHandler *restore.Handler,
 	storageProvHandler *storage.ProviderHandler,
 	notifHandler *notification.Handler,
+	settingsHandler *settings.Handler,
 ) *Router {
 	mux := http.NewServeMux()
 
@@ -40,6 +42,7 @@ func NewRouter(
 	restoreHandler.RegisterRoutes(mux)
 	storageProvHandler.RegisterRoutes(mux)
 	notifHandler.RegisterRoutes(mux)
+	settingsHandler.RegisterRoutes(mux)
 
 	// Static files (Web UI)
 	mux.Handle("/", http.FileServer(http.Dir("./web")))

@@ -25,17 +25,17 @@ type ProviderService interface {
 
 // Notifier interface for sending notifications after backup.
 type Notifier interface {
-	NotifyBackupResult(backupID, dbName, dbType, status string, sizeBytes int64, durationMs int64, logTail string)
+	NotifyBackupResult(targetIDs []string, backupID, dbName, dbType, status string, sizeBytes int64, durationMs int64, logTail string)
 }
 
 // Service handles backup execution and management.
 type Service struct {
-	repo       Repository
-	connRepo   connection.Repository
-	provSvc    ProviderService
-	encSvc     encryption.Service
-	notifier   Notifier
-	semaphore  chan struct{} // concurrent backup limiter (max 3)
+	repo      Repository
+	connRepo  connection.Repository
+	provSvc   ProviderService
+	encSvc    encryption.Service
+	notifier  Notifier
+	semaphore chan struct{} // concurrent backup limiter (max 3)
 }
 
 // NewService creates a new backup service.
@@ -59,7 +59,7 @@ func (s *Service) SetNotifier(n Notifier) {
 }
 
 // StartBackup initiates a backup operation for the given database.
-func (s *Service) StartBackup(connectionID, databaseID, backupType string, scheduleID *string, storageProviderID *string) (*Backup, error) {
+func (s *Service) StartBackup(connectionID, databaseID, backupType string, scheduleID *string, storageProviderID *string, notifTargetIDs []string, notifOnSuccess, notifOnFailure bool) (*Backup, error) {
 	conn, err := s.connRepo.GetByID(connectionID)
 	if err != nil {
 		return nil, fmt.Errorf("get connection: %w", err)
@@ -84,6 +84,9 @@ func (s *Service) StartBackup(connectionID, databaseID, backupType string, sched
 		Status:            "running",
 		VerifyStatus:      "pending",
 		StorageProviderID: storageProviderID,
+		NotifTargetIDs:    notifTargetIDs,
+		NotifyOnSuccess:   notifOnSuccess,
+		NotifyOnFailure:   notifOnFailure,
 	}
 
 	if err := s.repo.Create(b); err != nil {
@@ -200,12 +203,12 @@ func (s *Service) runBackup(b *Backup, conn *connection.Connection, db *connecti
 	}
 
 	// Notify success
-	if s.notifier != nil {
+	if s.notifier != nil && b.NotifyOnSuccess {
 		dbName := ""
 		if db != nil {
 			dbName = db.DBName
 		}
-		s.notifier.NotifyBackupResult(b.ID, dbName, conn.DBType, "success",
+		s.notifier.NotifyBackupResult(b.NotifTargetIDs, b.ID, dbName, conn.DBType, "success",
 			int64PtrToInt64(b.SizeBytes), int64PtrToInt64(b.DurationMs), b.LogOutput)
 	}
 }
@@ -314,7 +317,7 @@ func (s *Service) failBackup(b *Backup, logOutput string) {
 	}
 
 	// Notify failure
-	if s.notifier != nil {
+	if s.notifier != nil && b.NotifyOnFailure {
 		dbName := ""
 		connDBType := ""
 		if b.ConnectionID != "" {
@@ -329,7 +332,7 @@ func (s *Service) failBackup(b *Backup, logOutput string) {
 				dbName = db.DBName
 			}
 		}
-		s.notifier.NotifyBackupResult(b.ID, dbName, connDBType, "failed",
+		s.notifier.NotifyBackupResult(b.NotifTargetIDs, b.ID, dbName, connDBType, "failed",
 			int64PtrToInt64(b.SizeBytes), int64PtrToInt64(b.DurationMs), logOutput)
 	}
 }
@@ -524,12 +527,10 @@ func (s *Service) runVerification(b *Backup) {
 			logBuf.WriteString("VERIFY: checksum MATCH — integrity verified\n")
 		} else {
 			logBuf.WriteString(fmt.Sprintf("VERIFY: checksum MISMATCH — stored=%s, computed=%s\n", b.Checksum, computedChecksum))
-			// Mismatch but still mark as passed if stored is empty? No, mark failed
 			s.failVerification(b, logBuf.String())
 			return
 		}
 	} else {
-		// No stored checksum to compare — save computed one
 		b.Checksum = computedChecksum
 		logBuf.WriteString("VERIFY: no stored checksum — saved computed checksum\n")
 	}

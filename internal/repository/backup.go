@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -18,12 +19,13 @@ func NewBackupRepo(db *sql.DB) *BackupRepo {
 	return &BackupRepo{db: db}
 }
 
+const backupCols = `id, connection_id, database_id, schedule_id, backup_type, status, storage_path,
+	storage_provider_id, size_bytes, encrypted_size_bytes, encryption_algo, encryption_key_id,
+	checksum, encrypted_checksum, verified_at, verify_status,
+	duration_ms, started_at, completed_at, notif_target_ids, notify_on_success, notify_on_failure, created_at`
+
 func (r *BackupRepo) List(connectionID, databaseID string, limit, offset int) ([]backup.Backup, error) {
-	query := `SELECT id, connection_id, database_id, schedule_id, backup_type, status, storage_path,
-		storage_provider_id, size_bytes, encrypted_size_bytes, encryption_algo, encryption_key_id,
-		checksum, encrypted_checksum, verified_at, verify_status,
-		duration_ms, started_at, completed_at, created_at
-		FROM backups WHERE 1=1`
+	query := `SELECT ` + backupCols + ` FROM backups WHERE 1=1`
 	var args []interface{}
 
 	if connectionID != "" {
@@ -59,16 +61,14 @@ func (r *BackupRepo) GetByID(id string) (*backup.Backup, error) {
 	b := backup.Backup{}
 	var storageProviderID, scheduleID, encKeyID, encryptedSize, sizeBytes, duration sql.NullString
 	var verifiedAt, startedAt, completedAt sql.NullTime
+	var notifIDs string
+	var notifOnSuccess, notifOnFailure int
 
-	err := r.db.QueryRow(`SELECT id, connection_id, database_id, schedule_id, backup_type, status, storage_path,
-		storage_provider_id, size_bytes, encrypted_size_bytes, encryption_algo, encryption_key_id,
-		checksum, encrypted_checksum, verified_at, verify_status,
-		duration_ms, started_at, completed_at, created_at
-		FROM backups WHERE id = ?`, id).
+	err := r.db.QueryRow(`SELECT `+backupCols+` FROM backups WHERE id = ?`, id).
 		Scan(&b.ID, &b.ConnectionID, &b.DatabaseID, &scheduleID, &b.BackupType, &b.Status,
 			&b.StoragePath, &storageProviderID, &sizeBytes, &encryptedSize, &b.EncryptionAlgo, &encKeyID,
 			&b.Checksum, &b.EncryptedChecksum, &verifiedAt, &b.VerifyStatus,
-			&duration, &startedAt, &completedAt, &b.CreatedAt)
+			&duration, &startedAt, &completedAt, &notifIDs, &notifOnSuccess, &notifOnFailure, &b.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -86,6 +86,10 @@ func (r *BackupRepo) GetByID(id string) (*backup.Backup, error) {
 	if v, err := parseInt64(encryptedSize.String); err == nil { b.EncryptedSizeBytes = &v }
 	if v, err := parseInt64(duration.String); err == nil { b.DurationMs = &v }
 
+	json.Unmarshal([]byte(notifIDs), &b.NotifTargetIDs)
+	b.NotifyOnSuccess = notifOnSuccess == 1
+	b.NotifyOnFailure = notifOnFailure == 1
+
 	return &b, nil
 }
 
@@ -93,15 +97,21 @@ func (r *BackupRepo) Create(b *backup.Backup) error {
 	b.ID = uuid.New().String()
 	b.CreatedAt = time.Now()
 
+	notifIDs := marshalStringSlice(b.NotifTargetIDs)
+	notifOnSuccess := boolToInt(b.NotifyOnSuccess)
+	notifOnFailure := boolToInt(b.NotifyOnFailure)
+
 	_, err := r.db.Exec(`INSERT INTO backups (id, connection_id, database_id, schedule_id, backup_type, status,
 		storage_path, storage_provider_id, size_bytes, encrypted_size_bytes, encryption_algo, encryption_key_id,
-		checksum, encrypted_checksum, verify_status, duration_ms, started_at, completed_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		checksum, encrypted_checksum, verify_status, duration_ms, started_at, completed_at,
+		notif_target_ids, notify_on_success, notify_on_failure, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		b.ID, b.ConnectionID, b.DatabaseID, nullableStr(b.ScheduleID), b.BackupType, b.Status,
 		b.StoragePath, nullableStr(b.StorageProviderID), nullableInt64(b.SizeBytes), nullableInt64(b.EncryptedSizeBytes),
 		b.EncryptionAlgo, nullableStr(b.EncryptionKeyID),
 		b.Checksum, b.EncryptedChecksum, b.VerifyStatus,
-		nullableInt64(b.DurationMs), nullableTime(b.StartedAt), nullableTime(b.CompletedAt), b.CreatedAt)
+		nullableInt64(b.DurationMs), nullableTime(b.StartedAt), nullableTime(b.CompletedAt),
+		notifIDs, notifOnSuccess, notifOnFailure, b.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create backup: %w", err)
 	}
@@ -132,11 +142,7 @@ func (r *BackupRepo) Delete(id string) error {
 
 // ListBySchedule returns backups for a given schedule, ordered oldest first.
 func (r *BackupRepo) ListBySchedule(scheduleID string) ([]backup.Backup, error) {
-	rows, err := r.db.Query(`SELECT id, connection_id, database_id, schedule_id, backup_type, status, storage_path,
-		storage_provider_id, size_bytes, encrypted_size_bytes, encryption_algo, encryption_key_id,
-		checksum, encrypted_checksum, verified_at, verify_status,
-		duration_ms, started_at, completed_at, created_at
-		FROM backups WHERE schedule_id = ? AND status = 'success' ORDER BY created_at ASC`, scheduleID)
+	rows, err := r.db.Query(`SELECT `+backupCols+` FROM backups WHERE schedule_id = ? AND status = 'success' ORDER BY created_at ASC`, scheduleID)
 	if err != nil {
 		return nil, fmt.Errorf("list backups by schedule: %w", err)
 	}
@@ -155,11 +161,7 @@ func (r *BackupRepo) ListBySchedule(scheduleID string) ([]backup.Backup, error) 
 
 // ListOldestByBackupType returns the oldest backup IDs of a given type for a specific schedule.
 func (r *BackupRepo) ListOldestByBackupType(scheduleID, backupType string, keepCount int) ([]backup.Backup, error) {
-	rows, err := r.db.Query(`SELECT id, connection_id, database_id, schedule_id, backup_type, status, storage_path,
-		storage_provider_id, size_bytes, encrypted_size_bytes, encryption_algo, encryption_key_id,
-		checksum, encrypted_checksum, verified_at, verify_status,
-		duration_ms, started_at, completed_at, created_at
-		FROM backups WHERE schedule_id = ? AND backup_type = ? AND status = 'success'
+	rows, err := r.db.Query(`SELECT `+backupCols+` FROM backups WHERE schedule_id = ? AND backup_type = ? AND status = 'success'
 		ORDER BY created_at ASC`, scheduleID, backupType)
 	if err != nil {
 		return nil, fmt.Errorf("list oldest backups: %w", err)
@@ -207,11 +209,13 @@ func scanBackup(rows *sql.Rows) (backup.Backup, error) {
 	b := backup.Backup{}
 	var storageProviderID, scheduleID, encKeyID, encryptedSize, sizeBytes, duration sql.NullString
 	var verifiedAt, startedAt, completedAt sql.NullTime
+	var notifIDs string
+	var notifOnSuccess, notifOnFailure int
 
 	err := rows.Scan(&b.ID, &b.ConnectionID, &b.DatabaseID, &scheduleID, &b.BackupType, &b.Status,
 		&b.StoragePath, &storageProviderID, &sizeBytes, &encryptedSize, &b.EncryptionAlgo, &encKeyID,
 		&b.Checksum, &b.EncryptedChecksum, &verifiedAt, &b.VerifyStatus,
-		&duration, &startedAt, &completedAt, &b.CreatedAt)
+		&duration, &startedAt, &completedAt, &notifIDs, &notifOnSuccess, &notifOnFailure, &b.CreatedAt)
 	if err != nil {
 		return b, fmt.Errorf("scan backup: %w", err)
 	}
@@ -225,6 +229,10 @@ func scanBackup(rows *sql.Rows) (backup.Backup, error) {
 	if v, err := parseInt64(sizeBytes.String); err == nil { b.SizeBytes = &v }
 	if v, err := parseInt64(encryptedSize.String); err == nil { b.EncryptedSizeBytes = &v }
 	if v, err := parseInt64(duration.String); err == nil { b.DurationMs = &v }
+
+	json.Unmarshal([]byte(notifIDs), &b.NotifTargetIDs)
+	b.NotifyOnSuccess = notifOnSuccess == 1
+	b.NotifyOnFailure = notifOnFailure == 1
 
 	return b, nil
 }
@@ -260,4 +268,19 @@ func parseInt64(s string) (int64, error) {
 		return 0, err
 	}
 	return v, nil
+}
+
+func marshalStringSlice(s []string) string {
+	if s == nil {
+		return "[]"
+	}
+	data, _ := json.Marshal(s)
+	return string(data)
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

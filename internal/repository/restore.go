@@ -25,7 +25,7 @@ func (r *RestoreRepo) List() ([]restore.Restore, error) {
 	}
 	defer rows.Close()
 
-	var rs []restore.Restore
+	rs := make([]restore.Restore, 0)
 	for rows.Next() {
 		var res restore.Restore
 		var targetConn, duration sql.NullString

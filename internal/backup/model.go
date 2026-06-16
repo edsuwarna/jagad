@@ -25,6 +25,9 @@ type Backup struct {
 	LogOutput           string     `json:"log_output,omitempty"`
 	StartedAt           *time.Time `json:"started_at,omitempty"`
 	CompletedAt         *time.Time `json:"completed_at,omitempty"`
+	NotifTargetIDs      []string   `json:"notif_target_ids"`   // notification target IDs
+	NotifyOnSuccess     bool       `json:"notify_on_success"`
+	NotifyOnFailure     bool       `json:"notify_on_failure"`
 	CreatedAt           time.Time  `json:"created_at"`
 }
 
