@@ -22,6 +22,9 @@ data/
 .DS_Store
 Thumbs.db
 
+# Hermes Agent plans
+.hermes/
+
 # Go
 vendor/
 *.test
