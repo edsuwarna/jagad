@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jagad — Monitoring v2 Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --accent: #635BFF; --accent-dark: #5850EC; --accent-light: #7a73ff;
+  --bg-canvas: #0A2540; --bg-surface: #0F2B47; --bg-elevated: #1a3a5c;
+  --bg-sidebar: #0d2340; --bg-sidebar-hover: rgba(255,255,255,0.06);
+  --bg-sidebar-active: rgba(99,91,255,0.15); --bg-subtle: rgba(255,255,255,0.04);
+  --border-default: rgba(255,255,255,0.08); --border-subtle: rgba(255,255,255,0.04);
+  --border-hover: rgba(255,255,255,0.15);
+  --text-primary: rgba(255,255,255,0.95); --text-secondary: rgba(255,255,255,0.65);
+  --text-tertiary: rgba(255,255,255,0.4); --text-sidebar: rgba(255,255,255,0.45);
+  --green: #22d66a; --green-bg: rgba(34,214,106,0.1); --green-border: rgba(34,214,106,0.2);
+  --yellow: #f5a623; --yellow-bg: rgba(245,166,35,0.1); --yellow-border: rgba(245,166,35,0.2);
+  --red: #ef4444; --red-bg: rgba(239,68,68,0.1); --red-border: rgba(239,68,68,0.2);
+  --blue: #3b82f6; --blue-bg: rgba(59,130,246,0.1);
+  --purple: #a855f7; --purple-bg: rgba(168,85,247,0.1);
+  --teal: #14b8a6;
+}
+body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg-canvas); color: var(--text-primary); display: flex; min-height: 100vh; }
+.sidebar { width: 240px; background: var(--bg-sidebar); border-right: 1px solid var(--border-default); padding: 24px 16px; display: flex; flex-direction: column; flex-shrink: 0; }
+.sidebar-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; padding: 0 8px; }
+.sidebar-logo svg { width: 28px; height: 28px; }
+.sidebar-logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; color: var(--text-primary); }
+.sidebar-section { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-quaternary, rgba(255,255,255,0.25)); padding: 16px 8px 8px; }
+.sidebar-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; color: var(--text-sidebar); font-size: 14px; font-weight: 500; cursor: pointer; transition: all .15s; margin: 1px 0; text-decoration: none; }
+.sidebar-item:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); }
+.sidebar-item.active { background: var(--bg-sidebar-active); color: var(--accent); }
+.sidebar-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.sidebar-badge { margin-left: auto; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px; }
+.sidebar-count { margin-left: auto; color: var(--text-tertiary); font-size: 12px; }
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; border-bottom: 1px solid var(--border-default); }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-left h1 { font-size: 20px; font-weight: 600; }
+.header-time { font-size: 12px; color: var(--text-tertiary); margin-left: 8px; }
+.tabs { display: flex; gap: 4px; background: var(--bg-subtle); padding: 3px; border-radius: 8px; }
+.tab { padding: 6px 16px; font-size: 13px; font-weight: 500; color: var(--text-secondary); border-radius: 6px; cursor: pointer; transition: all .15s; border: none; background: none; }
+.tab:hover { color: var(--text-primary); }
+.tab.active { background: var(--bg-elevated); color: var(--text-primary); }
+.header-actions { display: flex; align-items: center; gap: 12px; }
+.btn-primary { background: var(--accent); color: #fff; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 6px; }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-ghost { background: none; border: 1px solid var(--border-default); color: var(--text-primary); padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+.content { padding: 24px 32px; overflow-y: auto; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* KPI Row */
+.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
+.kpi-card { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 12px; padding: 16px; }
+.kpi-card .kpi-label { font-size: 12px; font-weight: 500; color: var(--text-tertiary); margin-bottom: 4px; }
+.kpi-card .kpi-value { font-size: 24px; font-weight: 700; }
+.kpi-card .kpi-trend { font-size: 12px; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+.trend-up { color: var(--green); } .trend-down { color: var(--red); } .trend-warn { color: var(--yellow); }
+.kpi-row-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* Health Grid */
+.health-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.health-card { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 12px; padding: 20px; position: relative; }
+.health-card .status-dot { width: 10px; height: 10px; border-radius: 50%; position: absolute; top: 16px; right: 16px; }
+.health-card .status-dot.green { background: var(--green); box-shadow: 0 0 8px rgba(34,214,106,0.4); }
+.health-card .status-dot.yellow { background: var(--yellow); box-shadow: 0 0 8px rgba(245,166,35,0.4); }
+.health-card .status-dot.red { background: var(--red); box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+.health-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+.health-card .conn-meta { font-size: 12px; color: var(--text-tertiary); margin-bottom: 16px; }
+.health-card .conn-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.health-card .metric-item .metric-label { font-size: 11px; color: var(--text-tertiary); }
+.health-card .metric-item .metric-val { font-size: 14px; font-weight: 600; }
+.health-card .sparkline { margin-top: 12px; height: 32px; display: flex; align-items: flex-end; gap: 2px; }
+.health-card .sparkline .bar { width: 6px; border-radius: 2px 2px 0 0; }
+.health-card .sparkline .bar.green { background: var(--green); opacity: .6; }
+.health-card .sparkline .bar.yellow { background: var(--yellow); opacity: .6; }
+.health-card .sparkline .bar.red { background: var(--red); opacity: .6; }
+.health-card .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-subtle); font-size: 11px; color: var(--text-tertiary); }
+.health-card .card-actions { display: flex; gap: 8px; }
+.health-card .card-actions svg { width: 16px; height: 16px; cursor: pointer; color: var(--text-tertiary); }
+.health-card .card-actions svg:hover { color: var(--text-primary); }
+
+/* TimescaleDB Panel */
+.tsdb-panel { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+.tsdb-panel h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.tsdb-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.tsdb-item { }
+.tsdb-item .tsdb-label { font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px; }
+.tsdb-item .tsdb-value { font-size: 16px; font-weight: 600; }
+.tsdb-item .tsdb-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.tsdb-status { display: flex; align-items: center; gap: 6px; }
+.tsdb-dot { width: 8px; height: 8px; border-radius: 50%; }
+.tsdb-dot.green { background: var(--green); }
+.tsdb-bar { height: 6px; background: var(--bg-elevated); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+.tsdb-bar-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+.retention-config { display: flex; gap: 6px; margin-top: 6px; }
+.retention-btn { padding: 4px 12px; font-size: 11px; font-weight: 500; border: 1px solid var(--border-default); border-radius: 4px; background: none; color: var(--text-secondary); cursor: pointer; }
+.retention-btn.active { border-color: var(--accent); color: var(--accent); background: var(--bg-sidebar-active); }
+
+/* Analytics */
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-header h3 { font-size: 14px; font-weight: 600; }
+.section-link { font-size: 12px; color: var(--accent); cursor: pointer; }
+.chart-area { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+.chart-bars { display: flex; align-items: flex-end; justify-content: space-between; height: 160px; margin: 16px 0 8px; gap: 2px; }
+.chart-bar { flex: 1; border-radius: 3px 3px 0 0; min-height: 4px; background: var(--accent); opacity: .7; position: relative; }
+.chart-bar:hover { opacity: 1; }
+.chart-bar .bar-val { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 9px; color: var(--text-tertiary); }
+.chart-bar.anomaly { background: var(--red); }
+.chart-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-tertiary); }
+.chart-legend { display: flex; gap: 16px; font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; }
+
+/* Slow Queries */
+.slow-queries { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+.slow-queries .sq-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-default); }
+.slow-queries .sq-header h3 { font-size: 14px; font-weight: 600; }
+.sq-table { width: 100%; border-collapse: collapse; }
+.sq-table th { text-align: left; padding: 10px 20px; font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border-subtle); }
+.sq-table td { padding: 12px 20px; font-size: 13px; border-bottom: 1px solid var(--border-subtle); }
+.sq-table tr:last-child td { border-bottom: none; }
+.sq-table .query-preview { font-family: 'SF Mono', 'Cascadia Code', monospace; font-size: 12px; color: var(--text-secondary); max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.badge-pg { background: var(--blue-bg); color: var(--blue); }
+.badge-mysql { background: var(--purple-bg); color: var(--purple); }
+.badge-green { background: var(--green-bg); color: var(--green); }
+.badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+.badge-red { background: var(--red-bg); color: var(--red); }
+
+/* List View */
+.list-controls { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+.filter-pill { padding: 6px 14px; font-size: 12px; font-weight: 500; border: 1px solid var(--border-default); border-radius: 6px; background: none; color: var(--text-secondary); cursor: pointer; }
+.filter-pill.active { border-color: var(--accent); color: var(--accent); background: var(--bg-sidebar-active); }
+.search-input { flex: 1; max-width: 280px; padding: 6px 12px; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 6px; color: var(--text-primary); font-size: 13px; }
+.search-input::placeholder { color: var(--text-tertiary); }
+.data-table { width: 100%; border-collapse: collapse; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 12px; overflow: hidden; }
+.data-table th { text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border-default); background: var(--bg-subtle); }
+.data-table td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--border-subtle); }
+.data-table tr:hover td { background: var(--bg-subtle); }
+.data-table .expand-btn { width: 20px; height: 20px; border: 1px solid var(--border-default); border-radius: 4px; background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-tertiary); font-size: 10px; }
+.pagination { display: flex; gap: 4px; justify-content: center; margin-top: 16px; }
+.page-btn { padding: 6px 12px; font-size: 12px; border: 1px solid var(--border-default); border-radius: 6px; background: none; color: var(--text-secondary); cursor: pointer; }
+.page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* Section Group */
+.section-group { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+.card-full { background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: 12px; padding: 20px; }
+.card-full h4 { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.metric-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); font-size: 13px; }
+.metric-row:last-child { border-bottom: none; }
+.metric-row .metric-name { color: var(--text-secondary); }
+.metric-row .metric-val { font-weight: 600; }
+
+/* Coming Soon */
+.coming-soon { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--blue-bg); color: var(--blue); font-size: 10px; font-weight: 600; border-radius: 4px; }
+
+/* Responsive */
+@media (max-width: 1024px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } .health-grid { grid-template-columns: repeat(2, 1fr); } .tsdb-grid { grid-template-columns: repeat(2, 1fr); } .section-group { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .sidebar { display: none; } .content { padding: 16px; } .header { padding: 12px 16px; } .kpi-row { grid-template-columns: 1fr 1fr; } .health-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="6" fill="var(--accent)"/><path d="M8 14L12 18L20 10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="sidebar-logo-text">Jagad</span>
+  </div>
+  <div class="sidebar-section">General</div>
+  <a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</a>
+  <a class="sidebar-item active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Monitoring<span class="sidebar-badge">NEW</span></a>
+  <a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Connections<span class="sidebar-count">12</span></a>
+  <a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>Backups</a>
+  <a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Schedules</a>
+  <div class="sidebar-section">Data</div>
+  <a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Storage</a>
+  <a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17H10"/><path d="M18 4v10"/><path d="M22 4H2"/><path d="M4 4v10"/><path d="M18 20H2"/></svg>Notifications</a>
+  <div class="sidebar-section">Account</div>
+  <a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>Settings</a>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <h1>Monitoring</h1>
+      <span class="header-time">Updated <span id="liveTime">12s ago</span></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('grid')">Grid</button>
+        <button class="tab" onclick="switchTab('analytics')">Analytics</button>
+        <button class="tab" onclick="switchTab('list')">List</button>
+      </div>
+      <div class="header-actions">
+        <button class="btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Monitor
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- ============================================================ TAB: GRID -->
+    <div id="tab-grid" class="tab-content active">
+
+      <!-- KPI Row -->
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Connections</div>
+          <div class="kpi-value">12</div>
+          <div class="kpi-trend"><span class="trend-up">↑ +2 this week</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Healthy</div>
+          <div class="kpi-value">10 / 12</div>
+          <div class="kpi-trend"><span class="trend-up">↑ 83.3% uptime (7d)</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Avg Response</div>
+          <div class="kpi-value" style="color:var(--yellow);">24ms</div>
+          <div class="kpi-trend"><span class="trend-down">↓ +8ms vs last week</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Total DB Size</div>
+          <div class="kpi-value">284 GB</div>
+          <div class="kpi-trend"><span class="trend-up">↑ +12GB this month</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Cache Hit Ratio</div>
+          <div class="kpi-value" style="color:var(--yellow);">96.8%</div>
+          <div class="kpi-trend"><span class="trend-down">↓ Below threshold (98%)</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">QPS (Avg)</div>
+          <div class="kpi-value">1,247</div>
+          <div class="kpi-trend"><span class="trend-up">↑ +3.2% vs yesterday</span></div>
+        </div>
+      </div>
+
+      <!-- TimescaleDB Integration Panel -->
+      <div class="tsdb-panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Metrics Storage — TimescaleDB
+          <span class="tsdb-status" style="margin-left:8px;"><span class="tsdb-dot green"></span><span style="font-size:12px;color:var(--green);font-weight:500;">Connected</span></span>
+        </h3>
+        <div class="tsdb-grid">
+          <div class="tsdb-item">
+            <div class="tsdb-label">Storage Used</div>
+            <div class="tsdb-value">2.4 GB</div>
+            <div class="tsdb-bar"><div class="tsdb-bar-fill" style="width:24%;"></div></div>
+            <div class="tsdb-sub">of 10 GB allocation (24%)</div>
+          </div>
+          <div class="tsdb-item">
+            <div class="tsdb-label">Data Points Stored</div>
+            <div class="tsdb-value">1.2M</div>
+            <div class="tsdb-sub">+8,640 added today</div>
+          </div>
+          <div class="tsdb-item">
+            <div class="tsdb-label">Retention Policy</div>
+            <div class="retention-config">
+              <button class="retention-btn">7d</button>
+              <button class="retention-btn">30d</button>
+              <button class="retention-btn active">90d</button>
+              <button class="retention-btn">Custom</button>
+            </div>
+            <div class="tsdb-sub">Auto-delete data older than 90 days</div>
+          </div>
+          <div class="tsdb-item">
+            <div class="tsdb-label">Compression Ratio</div>
+            <div class="tsdb-value">91%</div>
+            <div class="tsdb-sub">TimescaleDB native columnar compression</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Health Grid -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="font-size:14px;font-weight:600;">Connection Health</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select style="padding:4px 8px;font-size:12px;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:6px;color:var(--text-primary);">
+            <option>Last 5 minutes</option><option>Last 15 minutes</option><option>Last 1 hour</option><option>Last 24 hours</option>
+          </select>
+          <button class="btn-ghost">⟳ Refresh All</button>
+        </div>
+      </div>
+
+      <div class="health-grid">
+        <!-- Card 1: Production PG -->
+        <div class="health-card">
+          <div class="status-dot green"></div>
+          <h3>Production PG</h3>
+          <div class="conn-meta"><span class="badge badge-pg">PG 16</span> · prod-db.internal</div>
+          <div class="conn-metrics">
+            <div>
+              <div class="metric-item"><div class="metric-label">Response</div><div class="metric-val" style="color:var(--green);">12ms</div></div>
+              <div class="metric-item"><div class="metric-label">Active Conns</div><div class="metric-val" style="color:var(--green);">23 / 100</div></div>
+            </div>
+            <div>
+              <div class="metric-item"><div class="metric-label">DB Size</div><div class="metric-val">127 GB</div></div>
+              <div class="metric-item"><div class="metric-label">Growth</div><div class="metric-val" style="color:var(--yellow);">+4.2 GB/mo</div></div>
+            </div>
+          </div>
+          <div class="sparkline"><div class="bar green" style="height:60%;"></div><div class="bar green" style="height:45%;"></div><div class="bar green" style="height:70%;"></div><div class="bar green" style="height:55%;"></div><div class="bar green" style="height:80%;"></div><div class="bar green" style="height:62%;"></div><div class="bar green" style="height:75%;"></div><div class="bar green" style="height:50%;"></div><div class="bar green" style="height:68%;"></div><div class="bar green" style="height:72%;"></div><div class="bar green" style="height:58%;"></div><div class="bar green" style="height:65%;"></div></div>
+          <div class="card-footer">
+            <span>Last: 32s ago · Cache: 99.1%</span>
+            <div class="card-actions">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            </div>
+          </div>
+        </div>
+        <!-- Card 2: Staging MySQL -->
+        <div class="health-card">
+          <div class="status-dot yellow"></div>
+          <h3>Staging MySQL</h3>
+          <div class="conn-meta"><span class="badge badge-mysql">MySQL 8.4</span> · staging-db.internal</div>
+          <div class="conn-metrics">
+            <div>
+              <div class="metric-item"><div class="metric-label">Response</div><div class="metric-val" style="color:var(--yellow);">1,240ms</div></div>
+              <div class="metric-item"><div class="metric-label">Active Conns</div><div class="metric-val" style="color:var(--yellow);">89 / 150</div></div>
+            </div>
+            <div>
+              <div class="metric-item"><div class="metric-label">DB Size</div><div class="metric-val">42 GB</div></div>
+              <div class="metric-item"><div class="metric-label">Growth</div><div class="metric-val" style="color:var(--green);">+1.1 GB/mo</div></div>
+            </div>
+          </div>
+          <div class="sparkline"><div class="bar green" style="height:55%;"></div><div class="bar green" style="height:60%;"></div><div class="bar yellow" style="height:85%;"></div><div class="bar green" style="height:50%;"></div><div class="bar green" style="height:48%;"></div><div class="bar yellow" style="height:75%;"></div><div class="bar green" style="height:52%;"></div><div class="bar green" style="height:58%;"></div><div class="bar yellow" style="height:80%;"></div><div class="bar green" style="height:62%;"></div><div class="bar green" style="height:55%;"></div><div class="bar yellow" style="height:72%;"></div></div>
+          <div class="card-footer">
+            <span>Last: 12s ago · Cache: 98.4%</span>
+            <div class="card-actions">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            </div>
+          </div>
+        </div>
+        <!-- Card 3: Analytics PG -->
+        <div class="health-card">
+          <div class="status-dot red"></div>
+          <h3>Analytics PG</h3>
+          <div class="conn-meta"><span class="badge badge-pg">PG 15</span> · analytics-db.internal</div>
+          <div class="conn-metrics">
+            <div>
+              <div class="metric-item"><div class="metric-label">Response</div><div class="metric-val" style="color:var(--red);">Timeout</div></div>
+              <div class="metric-item"><div class="metric-label">Active Conns</div><div class="metric-val" style="color:var(--text-tertiary);">—</div></div>
+            </div>
+            <div>
+              <div class="metric-item"><div class="metric-label">DB Size</div><div class="metric-val">84 GB</div></div>
+              <div class="metric-item"><div class="metric-label">Last Up</div><div class="metric-val" style="color:var(--red);">3h ago</div></div>
+            </div>
+          </div>
+          <div class="sparkline"><div class="bar green" style="height:60%;"></div><div class="bar green" style="height:55%;"></div><div class="bar green" style="height:70%;"></div><div class="bar green" style="height:65%;"></div><div class="bar green" style="height:72%;"></div><div class="bar green" style="height:58%;"></div><div class="bar green" style="height:62%;"></div><div class="bar green" style="height:50%;"></div><div class="bar green" style="height:45%;"></div><div class="bar red" style="height:4px;"></div><div class="bar red" style="height:4px;"></div><div class="bar red" style="height:4px;"></div></div>
+          <div class="card-footer">
+            <span>Last: 5m ago</span>
+            <div class="card-actions">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom: Error Rate + Storage Growth -->
+      <div class="section-group">
+        <div class="card-full">
+          <h4><span class="tsdb-dot green" style="display:inline-block;margin-right:6px;"></span>Error Rate (24h)</h4>
+          <div class="chart-bars" style="height:80px;margin:0;">
+            <div class="chart-bar" style="height:10%;background:var(--green);opacity:0.5;"></div>
+            <div class="chart-bar" style="height:8%;background:var(--green);opacity:0.5;"></div>
+            <div class="chart-bar" style="height:15%;background:var(--yellow);opacity:0.7;"></div>
+            <div class="chart-bar" style="height:12%;background:var(--green);opacity:0.5;"></div>
+            <div class="chart-bar" style="height:6%;background:var(--green);opacity:0.5;"></div>
+            <div class="chart-bar" style="height:9%;background:var(--green);opacity:0.5;"></div>
+            <div class="chart-bar" style="height:45%;background:var(--red);opacity:0.8;"></div>
+            <div class="chart-bar" style="height:20%;background:var(--yellow);opacity:0.7;"></div>
+            <div class="chart-bar" style="height:11%;background:var(--green);opacity:0.5;"></div>
+            <div class="chart-bar" style="height:7%;background:var(--green);opacity:0.5;"></div>
+            <div class="chart-bar" style="height:5%;background:var(--green);opacity:0.5;"></div>
+            <div class="chart-bar" style="height:8%;background:var(--green);opacity:0.5;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-tertiary);margin-top:6px;">
+            <span>Avg: 0.4%</span>
+            <span>Peak: 3.2% at 14:22</span>
+            <span>Total errors: 47</span>
+          </div>
+        </div>
+        <div class="card-full">
+          <h4><span class="tsdb-dot green" style="display:inline-block;margin-right:6px;"></span>Storage Growth (30d)</h4>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="metric-row"><span class="metric-name">Production PG</span><span class="metric-val">+4.2 GB</span></div>
+            <div class="metric-row"><span class="metric-name">Analytics PG</span><span class="metric-val">+2.8 GB</span></div>
+            <div class="metric-row"><span class="metric-name">Staging MySQL</span><span class="metric-val">+1.1 GB</span></div>
+            <div class="metric-row"><span class="metric-name">Production MariaDB</span><span class="metric-val">+0.9 GB</span></div>
+            <div class="metric-row"><span class="metric-name">Dev MySQL</span><span class="metric-val">+0.3 GB</span></div>
+          </div>
+          <div style="margin-top:12px;font-size:12px;color:var(--text-tertiary);">
+            Projected full in <strong>347 days</strong> at current rate
+          </div>
+        </div>
+      </div>
+
+      <!-- Coming Soon Banner -->
+      <div style="background:var(--bg-surface);border:1px dashed var(--border-hover);border-radius:12px;padding:16px;text-align:center;">
+        <span style="font-size:13px;color:var(--text-secondary);">
+          🔄 Replication lag, lock detection, and autovacuum monitoring 
+          <span class="coming-soon">Coming Soon</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- ============================================================ TAB: ANALYTICS -->
+    <div id="tab-analytics" class="tab-content">
+
+      <!-- KPI Row (4 columns) -->
+      <div class="kpi-row kpi-row-4" style="margin-bottom:24px;">
+        <div class="kpi-card">
+          <div class="kpi-label">Overall Uptime (7d)</div>
+          <div class="kpi-value" style="color:var(--green);">99.2%</div>
+          <div class="kpi-trend"><span class="trend-up">↑ +0.3% vs last week</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Avg Response Time</div>
+          <div class="kpi-value" style="color:var(--yellow);">24ms</div>
+          <div class="kpi-trend"><span class="trend-down">↓ +8ms spike at 14:22</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Cache Hit Ratio</div>
+          <div class="kpi-value" style="color:var(--yellow);">96.8%</div>
+          <div class="kpi-trend"><span class="trend-down">↓ Below threshold (98%)</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Total Data Growth</div>
+          <div class="kpi-value" style="color:var(--green);">+12.4 GB</div>
+          <div class="kpi-trend"><span class="trend-up">↑ This month</span></div>
+        </div>
+      </div>
+
+      <!-- Slow Queries -->
+      <div class="slow-queries">
+        <div class="sq-header">
+          <h3>🐌 Slow Queries — Top 10 by Total Time</h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select style="padding:4px 8px;font-size:12px;background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:6px;color:var(--text-primary);">
+              <option>PostgreSQL</option><option>MySQL</option><option>All</option>
+            </select>
+            <span class="section-link">View Details →</span>
+          </div>
+        </div>
+        <table class="sq-table">
+          <thead><tr><th>#</th><th>Database</th><th>Query</th><th>Avg Time</th><th>Total Time</th><th>Calls</th><th>Rows</th><th>DB</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Production PG</td><td class="query-preview">SELECT o.*, oi.*, u.* FROM orders o JOIN order_items oi ON o.id = oi.order_id ...</td><td style="color:var(--red);font-weight:600;">12,450ms</td><td>37.4s</td><td>3</td><td>248K</td><td><span class="badge badge-pg">PG</span></td></tr>
+            <tr><td>2</td><td>Production PG</td><td class="query-preview">UPDATE inventory SET quantity = quantity - $1 WHERE product_id = $2 AND quantity >= $1</td><td style="color:var(--yellow);font-weight:600;">3,210ms</td><td>96.3s</td><td>30</td><td>90K</td><td><span class="badge badge-pg">PG</span></td></tr>
+            <tr><td>3</td><td>Staging MySQL</td><td class="query-preview">SELECT * FROM analytics_events WHERE event_type IN ('page_view', 'click', 'purchase') AND created_at > ...</td><td style="color:var(--yellow);font-weight:600;">2,840ms</td><td>142s</td><td>50</td><td>1.2M</td><td><span class="badge badge-mysql">MySQL</span></td></tr>
+            <tr><td>4</td><td>Analytics PG</td><td class="query-preview">SELECT date_trunc('hour', created_at) AS hour, COUNT(*) FROM events WHERE created_at > ...</td><td>1,220ms</td><td>61s</td><td>50</td><td>4.5M</td><td><span class="badge badge-pg">PG</span></td></tr>
+            <tr><td>5</td><td>Production PG</td><td class="query-preview">WITH RECURSIVE category_tree AS (SELECT * FROM categories WHERE parent_id IS NULL ...</td><td>980ms</td><td>9.8s</td><td>10</td><td>15K</td><td><span class="badge badge-pg">PG</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Response Time Chart + QPS -->
+      <div class="section-group">
+        <div class="chart-area" style="margin-bottom:0;">
+          <div class="section-header">
+            <h3>Response Time — Last 24 Hours</h3>
+            <div style="display:flex;gap:12px;align-items:center;">
+              <span class="section-link">View Details →</span>
+            </div>
+          </div>
+          <div class="chart-legend">
+            <span><span style="color:var(--accent);">●</span> Normal</span>
+            <span><span style="color:var(--red);">●</span> Anomaly</span>
+            <span><span style="color:var(--text-tertiary);">Avg: 24ms</span></span>
+          </div>
+          <div class="chart-bars">
+            <div class="chart-bar" style="height:30%;"><span class="bar-val">16</span></div>
+            <div class="chart-bar" style="height:35%;"><span class="bar-val">18</span></div>
+            <div class="chart-bar" style="height:28%;"><span class="bar-val">14</span></div>
+            <div class="chart-bar" style="height:42%;"><span class="bar-val">22</span></div>
+            <div class="chart-bar" style="height:38%;"><span class="bar-val">20</span></div>
+            <div class="chart-bar" style="height:55%;"><span class="bar-val">32</span></div>
+            <div class="chart-bar" style="height:48%;"><span class="bar-val">28</span></div>
+            <div class="chart-bar" style="height:62%;"><span class="bar-val">36</span></div>
+            <div class="chart-bar" style="height:45%;"><span class="bar-val">26</span></div>
+            <div class="chart-bar" style="height:70%;"><span class="bar-val">44</span></div>
+            <div class="chart-bar" style="height:58%;"><span class="bar-val">34</span></div>
+            <div class="chart-bar" style="height:82%;"><span class="bar-val">48</span></div>
+            <div class="chart-bar" style="height:65%;"><span class="bar-val">40</span></div>
+            <div class="chart-bar" style="height:90%;"><span class="bar-val">52</span></div>
+            <div class="chart-bar" style="height:75%;"><span class="bar-val">44</span></div>
+            <div class="chart-bar" style="height:95%;"><span class="bar-val">56</span></div>
+            <div class="chart-bar" style="height:78%;"><span class="bar-val">48</span></div>
+            <div class="chart-bar" style="height:85%;"><span class="bar-val">50</span></div>
+            <div class="chart-bar" style="height:88%;"><span class="bar-val">52</span></div>
+            <div class="chart-bar" style="height:92%;"><span class="bar-val">54</span></div>
+            <div class="chart-bar" style="height:80%;"><span class="bar-val">46</span></div>
+            <div class="chart-bar anomaly" style="height:100%;"><span class="bar-val" style="color:var(--red);">144</span></div>
+            <div class="chart-bar" style="height:85%;"><span class="bar-val">50</span></div>
+            <div class="chart-bar" style="height:72%;"><span class="bar-val">42</span></div>
+          </div>
+          <div class="chart-labels">
+            <span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span><span>22:00</span><span>00:00</span><span>02:00</span><span>04:00</span><span>06:00</span><span>08:00</span><span>10:00</span><span>12:00</span>
+          </div>
+        </div>
+        <div class="chart-area" style="margin-bottom:0;">
+          <div class="section-header">
+            <h3>Throughput (QPS) — Last 24 Hours</h3>
+          </div>
+          <div class="chart-bars">
+            <div class="chart-bar" style="height:40%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:35%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:55%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:48%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:62%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:70%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:85%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:92%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:95%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:88%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:75%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:65%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:58%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:72%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:80%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:90%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:86%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:78%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:82%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:76%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:68%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:60%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:52%;background:var(--teal);opacity:0.6;"></div>
+            <div class="chart-bar" style="height:45%;background:var(--teal);opacity:0.6;"></div>
+          </div>
+          <div class="chart-labels">
+            <span>14:00</span><span>18:00</span><span>22:00</span><span>02:00</span><span>06:00</span><span>10:00</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-tertiary);margin-top:8px;">
+            <span>Peak: 2,340 QPS</span>
+            <span>Avg: 1,247 QPS</span>
+            <span>Low: 420 QPS</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backup Analytics -->
+      <div class="slow-queries">
+        <div class="sq-header">
+          <h3>📊 Backup Analytics — Last 7 Days</h3>
+        </div>
+        <table class="sq-table">
+          <thead><tr><th>Database</th><th>Success Rate</th><th>Avg Duration</th><th>Avg Size</th><th>Last Backup</th><th>Freshness</th></tr></thead>
+          <tbody>
+            <tr><td>Production PG</td><td><span class="badge badge-green">100% (12/12)</span></td><td>4m 32s</td><td>2.4 GB</td><td>12 min ago</td><td><span class="badge badge-green">✅ On time</span></td></tr>
+            <tr><td>Analytics PG</td><td><span class="badge badge-red">66% (8/12)</span></td><td>—</td><td>—</td><td>3h ago</td><td><span class="badge badge-red">⚠️ 2 missed</span></td></tr>
+            <tr><td>Staging MySQL</td><td><span class="badge badge-green">100% (12/12)</span></td><td>1m 12s</td><td>840 MB</td><td>42 min ago</td><td><span class="badge badge-green">✅ On time</span></td></tr>
+            <tr><td>Production MariaDB</td><td><span class="badge badge-green">100% (12/12)</span></td><td>2m 05s</td><td>1.1 GB</td><td>18 min ago</td><td><span class="badge badge-green">✅ On time</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- ============================================================ TAB: LIST -->
+    <div id="tab-list" class="tab-content">
+
+      <div class="list-controls">
+        <button class="filter-pill active">All (12)</button>
+        <button class="filter-pill">Healthy (10)</button>
+        <button class="filter-pill">Degraded (1)</button>
+        <button class="filter-pill">Down (1)</button>
+        <input class="search-input" placeholder="Search connections..." />
+      </div>
+
+      <table class="data-table">
+        <thead><tr><th style="width:24px;"></th><th>Connection</th><th>Type</th><th>Status</th><th>Response</th><th>Active / Max</th><th>DB Size</th><th>Cache Hit</th><th>QPS</th><th>Last Check</th></tr></thead>
+        <tbody>
+          <tr><td><button class="expand-btn">▸</button></td><td><strong>Production PG</strong><br><span style="font-size:11px;color:var(--text-tertiary);">prod-db.internal:5432</span></td><td><span class="badge badge-pg">PG</span></td><td><span class="badge badge-green">Healthy</span></td><td style="color:var(--green);">12ms</td><td>23 / 100</td><td>127 GB</td><td><span class="badge badge-green">99.1%</span></td><td>1,450</td><td>32s ago</td></tr>
+          <tr><td><button class="expand-btn">▸</button></td><td><strong>Staging MySQL</strong><br><span style="font-size:11px;color:var(--text-tertiary);">staging-db.internal:3306</span></td><td><span class="badge badge-mysql">MySQL</span></td><td><span class="badge badge-yellow">Degraded</span></td><td style="color:var(--yellow);">1,240ms</td><td>89 / 150</td><td>42 GB</td><td><span class="badge badge-green">98.4%</span></td><td>680</td><td>12s ago</td></tr>
+          <tr><td><button class="expand-btn">▸</button></td><td><strong>Analytics PG</strong><br><span style="font-size:11px;color:var(--text-tertiary);">analytics-db.internal:5432</span></td><td><span class="badge badge-pg">PG</span></td><td><span class="badge badge-red">Down</span></td><td style="color:var(--red);font-weight:600;">Timeout</td><td>—</td><td>84 GB</td><td><span class="badge badge-yellow">91.2%</span></td><td>—</td><td>5m ago</td></tr>
+          <tr><td><button class="expand-btn">▸</button></td><td><strong>Production MariaDB</strong><br><span style="font-size:11px;color:var(--text-tertiary);">mariadb-prod.internal:3306</span></td><td><span class="badge" style="background:var(--blue-bg);color:var(--blue);">MariaDB</span></td><td><span class="badge badge-green">Healthy</span></td><td style="color:var(--green);">8ms</td><td>12 / 200</td><td>56 GB</td><td><span class="badge badge-green">99.5%</span></td><td>2,100</td><td>8s ago</td></tr>
+          <tr><td><button class="expand-btn">▸</button></td><td><strong>Dev MySQL</strong><br><span style="font-size:11px;color:var(--text-tertiary);">dev-db.internal:3306</span></td><td><span class="badge badge-mysql">MySQL</span></td><td><span class="badge badge-green">Healthy</span></td><td style="color:var(--green);">5ms</td><td>4 / 50</td><td>8 GB</td><td><span class="badge badge-green">99.8%</span></td><td>320</td><td>4s ago</td></tr>
+        </tbody>
+      </table>
+
+      <div class="pagination">
+        <button class="page-btn">‹</button>
+        <button class="page-btn active">1</button>
+        <button class="page-btn">2</button>
+        <button class="page-btn">3</button>
+        <button class="page-btn">›</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector('.tab[onclick*="'+name+'"]')?.classList.add('active') ||
+  document.querySelectorAll('.tab')[['grid','analytics','list'].indexOf(name)].classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+// Auto update time
+setInterval(() => {
+  const el = document.getElementById('liveTime');
+  let s = parseInt(el.textContent);
+  el.textContent = isNaN(s) ? '12s ago' : (s+10)+'s ago';
+}, 10000);
+</script>
+</body>
+</html>
