@@ -1,6 +1,6 @@
-# Backupeer — PRD & Tracking
+# Jagad — PRD & Tracking
 
-This directory contains the Product Requirements Document and delivery tracking for Backupeer.
+This directory contains the Product Requirements Document and delivery tracking for Jagad.
 
 | File | Description |
 |---|---|

@@ -28,6 +28,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/monitoring/metrics", h.ListDBMetrics)
 	mux.HandleFunc("GET /api/monitoring/performance", h.ListPerformanceMetrics)
 	mux.HandleFunc("POST /api/monitoring/collect", h.TriggerCollect)
+	// P2 — Advanced Monitoring
+	mux.HandleFunc("GET /api/monitoring/autovacuum", h.ListAutovacuumInfo)
+	mux.HandleFunc("GET /api/monitoring/locks", h.ListLockInfo)
+	mux.HandleFunc("GET /api/monitoring/replication", h.ListReplicationLag)
+	mux.HandleFunc("GET /api/monitoring/tables", h.ListTableMetrics)
 }
 
 func (h *Handler) ListHealthChecks(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +100,76 @@ func (h *Handler) TriggerCollect(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "collection started"})
+}
+
+// ── P2 Handlers ──
+
+func (h *Handler) ListAutovacuumInfo(w http.ResponseWriter, r *http.Request) {
+	connectionID := r.URL.Query().Get("connection_id")
+	since := parseTime(r.URL.Query().Get("since"))
+	until := parseTime(r.URL.Query().Get("until"))
+	limit := parseLimit(r.URL.Query().Get("limit"), 50)
+
+	results, err := h.store.QueryAutovacuumInfo(connectionID, since, until, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query autovacuum info: "+err.Error())
+		return
+	}
+	if results == nil {
+		results = []AutovacuumInfo{}
+	}
+	writeJSON(w, http.StatusOK, results)
+}
+
+func (h *Handler) ListLockInfo(w http.ResponseWriter, r *http.Request) {
+	connectionID := r.URL.Query().Get("connection_id")
+	since := parseTime(r.URL.Query().Get("since"))
+	until := parseTime(r.URL.Query().Get("until"))
+	limit := parseLimit(r.URL.Query().Get("limit"), 50)
+
+	results, err := h.store.QueryLockInfo(connectionID, since, until, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query lock info: "+err.Error())
+		return
+	}
+	if results == nil {
+		results = []LockInfo{}
+	}
+	writeJSON(w, http.StatusOK, results)
+}
+
+func (h *Handler) ListReplicationLag(w http.ResponseWriter, r *http.Request) {
+	connectionID := r.URL.Query().Get("connection_id")
+	since := parseTime(r.URL.Query().Get("since"))
+	until := parseTime(r.URL.Query().Get("until"))
+	limit := parseLimit(r.URL.Query().Get("limit"), 50)
+
+	results, err := h.store.QueryReplicationLag(connectionID, since, until, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query replication lag: "+err.Error())
+		return
+	}
+	if results == nil {
+		results = []ReplicationLag{}
+	}
+	writeJSON(w, http.StatusOK, results)
+}
+
+func (h *Handler) ListTableMetrics(w http.ResponseWriter, r *http.Request) {
+	connectionID := r.URL.Query().Get("connection_id")
+	since := parseTime(r.URL.Query().Get("since"))
+	until := parseTime(r.URL.Query().Get("until"))
+	limit := parseLimit(r.URL.Query().Get("limit"), 50)
+
+	results, err := h.store.QueryTableMetrics(connectionID, since, until, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query table metrics: "+err.Error())
+		return
+	}
+	if results == nil {
+		results = []TableMetric{}
+	}
+	writeJSON(w, http.StatusOK, results)
 }
 
 func parseTime(s string) time.Time {

@@ -206,6 +206,18 @@ func (c *Collector) collectConnection(ctx context.Context, conn *connsvc.Connect
 		}
 	}
 
+	// 4. P2 — Autovacuum / Optimizer
+	c.collectAutovacuumAsync(ctx, conn, now)
+
+	// 5. P2 — Lock Detection
+	c.collectLocksAsync(ctx, conn, now)
+
+	// 6. P2 — Replication Lag
+	c.collectReplicationLagAsync(ctx, conn, now)
+
+	// 7. P2 — Table-Level Metrics
+	c.collectTableMetricsAsync(ctx, conn, now)
+
 	return nil
 }
 
@@ -504,6 +516,512 @@ func (c *Collector) collectMySQLPerformance(ctx context.Context, db *sql.DB, con
 	}
 
 	return perf, nil
+}
+
+// ── P2: Autovacuum / Optimizer ──
+
+func (c *Collector) collectAutovacuumAsync(ctx context.Context, conn *connsvc.Connection, now time.Time) {
+	sourceDB, err := openSourceDB(conn)
+	if err != nil {
+		return
+	}
+	defer sourceDB.Close()
+
+	switch conn.DBType {
+	case "postgresql":
+		c.collectPGAutovacuum(ctx, sourceDB, conn, now)
+	case "mysql", "mariadb":
+		c.collectMySQLOptimizer(ctx, sourceDB, conn, now)
+	}
+}
+
+func (c *Collector) collectPGAutovacuum(ctx context.Context, db *sql.DB, conn *connsvc.Connection, now time.Time) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT
+			schemaname,
+			relname,
+			n_live_tup,
+			n_dead_tup,
+			CASE WHEN (n_live_tup + n_dead_tup) > 0
+				THEN ROUND(n_dead_tup::numeric / (n_live_tup + n_dead_tup) * 100, 2)
+				ELSE 0
+			END as dead_tuple_pct,
+			last_autovacuum,
+			last_autoanalyze,
+			COALESCE(n_tup_mod, 0) - COALESCE(n_tup_mod, 0) as mod_since_vacuum,
+			autovacuum_count,
+			autoanalyze_count,
+			COALESCE(pg_total_relation_size(relid), 0) as total_size,
+			COALESCE(pg_indexes_size(relid), 0) as index_size
+		FROM pg_stat_user_tables
+		WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+		ORDER BY n_dead_tup DESC NULLS LAST
+		LIMIT 20`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var a AutovacuumInfo
+		var lastVac, lastAna sql.NullTime
+		var deadPct sql.NullFloat64
+		var totalSize, idxSize sql.NullInt64
+		if err := rows.Scan(&a.SchemaName, &a.TableName, &a.LiveTuples, &a.DeadTuples,
+			&deadPct, &lastVac, &lastAna, &a.ModSinceLastVacuum,
+			&a.NAutoVacuum, &a.NAutoAnalyze, &totalSize, &idxSize); err != nil {
+			continue
+		}
+		a.Time = now
+		a.ConnectionID = conn.ID
+		a.DBType = conn.DBType
+		if deadPct.Valid {
+			a.DeadTupleRatio = deadPct.Float64
+		}
+		if lastVac.Valid {
+			a.LastAutovacuum = &lastVac.Time
+		}
+		if lastAna.Valid {
+			a.LastAutoanalyze = &lastAna.Time
+		}
+		if totalSize.Valid {
+			a.TableSize = totalSize.Int64
+		}
+		if idxSize.Valid {
+			a.IndexSize = idxSize.Int64
+		}
+		// Estimate vacuum threshold
+		_ = db.QueryRowContext(ctx,
+			`SELECT (current_setting('autovacuum_vacuum_threshold')::int + (current_setting('autovacuum_vacuum_scale_factor')::numeric * $1)::int)::bigint`,
+			a.LiveTuples).Scan(&a.VacuumThreshold)
+		a.Engine = "PostgreSQL"
+
+		_ = c.store.RecordAutovacuumInfo(a)
+	}
+}
+
+func (c *Collector) collectMySQLOptimizer(ctx context.Context, db *sql.DB, conn *connsvc.Connection, now time.Time) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT
+			TABLE_SCHEMA,
+			TABLE_NAME,
+			ENGINE,
+			TABLE_ROWS,
+			DATA_LENGTH,
+			INDEX_LENGTH,
+			DATA_FREE,
+			TABLE_COLLATION
+		FROM information_schema.tables
+		WHERE TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql', 'sys')
+		ORDER BY (DATA_LENGTH + INDEX_LENGTH) DESC
+		LIMIT 20`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var a AutovacuumInfo
+		var engine, collation sql.NullString
+		var tableRows, dataLen, idxLen, dataFree sql.NullInt64
+		if err := rows.Scan(&a.SchemaName, &a.TableName, &engine, &tableRows,
+			&dataLen, &idxLen, &dataFree, &collation); err != nil {
+			continue
+		}
+		a.Time = now
+		a.ConnectionID = conn.ID
+		a.DBType = conn.DBType
+		if engine.Valid {
+			a.Engine = engine.String
+		}
+		if collation.Valid {
+			a.TableCollation = collation.String
+		}
+		if tableRows.Valid {
+			a.TableRows = tableRows.Int64
+		}
+		if dataLen.Valid {
+			a.TableSize = dataLen.Int64
+		}
+		if idxLen.Valid {
+			a.IndexSize = idxLen.Int64
+		}
+		if dataFree.Valid {
+			a.DataFree = dataFree.Int64
+		}
+		a.LiveTuples = tableRows.Int64
+		_ = c.store.RecordAutovacuumInfo(a)
+	}
+}
+
+// ── P2: Lock Detection ──
+
+func (c *Collector) collectLocksAsync(ctx context.Context, conn *connsvc.Connection, now time.Time) {
+	sourceDB, err := openSourceDB(conn)
+	if err != nil {
+		return
+	}
+	defer sourceDB.Close()
+
+	switch conn.DBType {
+	case "postgresql":
+		c.collectPGLocks(ctx, sourceDB, conn, now)
+	case "mysql", "mariadb":
+		c.collectMySQLLocks(ctx, sourceDB, conn, now)
+	}
+}
+
+func (c *Collector) collectPGLocks(ctx context.Context, db *sql.DB, conn *connsvc.Connection, now time.Time) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT
+			COALESCE(bl.datname, '') as database_name,
+			COALESCE(bl.relation::regclass::text, '') as relation_name,
+			COALESCE(bl.locktype, '') as lock_type,
+			COALESCE(bl.mode, '') as lock_mode,
+			bl.granted,
+			bl.pid as blocked_pid,
+			COALESCE(ba.usename, '') as blocked_user,
+			COALESCE(LEFT(ba.query, 200), '') as blocked_query,
+			COALESCE(EXTRACT(EPOCH FROM (NOW() - ba.query_start)), 0) as blocked_duration_seconds,
+			COALESCE(wl.pid, 0) as blocking_pid,
+			COALESCE(wa.usename, '') as blocking_user,
+			COALESCE(LEFT(wa.query, 200), '') as blocking_query
+		FROM pg_locks bl
+		LEFT JOIN pg_stat_activity ba ON bl.pid = ba.pid
+		LEFT JOIN pg_locks wl ON bl.locktype = wl.locktype
+			AND bl.database = wl.database
+			AND bl.relation = wl.relation
+			AND bl.pid != wl.pid
+			AND wl.granted = true
+		LEFT JOIN pg_stat_activity wa ON wl.pid = wa.pid
+		WHERE NOT bl.granted
+			AND bl.locktype IN ('relation', 'tuple', 'transactionid', 'extend')
+		LIMIT 20`)
+	if err != nil {
+		// pg_locks might not be accessible — skip silently
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var l LockInfo
+		if err := rows.Scan(&l.DatabaseName, &l.RelationName, &l.LockType, &l.LockMode,
+			&l.Granted, &l.BlockedPID, &l.BlockedUser, &l.BlockedQuery,
+			&l.BlockedDuration, &l.BlockingPID, &l.BlockingUser, &l.BlockingQuery); err != nil {
+			continue
+		}
+		l.Time = now
+		l.ConnectionID = conn.ID
+		l.DBType = conn.DBType
+		_ = c.store.RecordLockInfo(l)
+	}
+}
+
+func (c *Collector) collectMySQLLocks(ctx context.Context, db *sql.DB, conn *connsvc.Connection, now time.Time) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT
+			COALESCE(trx.TRX_ID, 0) as blocked_pid,
+			COALESCE(prc.USER, '') as blocked_user,
+			COALESCE(LEFT(prc.INFO, 200), '') as blocked_query,
+			COALESCE(TIMESTAMPDIFF(SECOND, trx.TRX_STARTED, NOW()), 0) as blocked_duration,
+			COALESCE(trx.TRX_REQUESTED_LOCK_ID, '') as lock_type,
+			'waiting' as lock_mode,
+			false as granted
+		FROM information_schema.INNODB_TRX trx
+		JOIN information_schema.PROCESSLIST prc ON trx.TRX_MYSQL_THREAD_ID = prc.ID
+		WHERE trx.TRX_REQUESTED_LOCK_ID IS NOT NULL
+		LIMIT 20`)
+	if err != nil {
+		// Try SHOW PROCESSLIST as fallback for lock detection
+		rows2, err2 := db.QueryContext(ctx, `SELECT ID, USER, INFO, TIME FROM information_schema.processlist WHERE INFO IS NOT NULL ORDER BY TIME DESC LIMIT 20`)
+		if err2 != nil {
+			return
+		}
+		defer rows2.Close()
+		for rows2.Next() {
+			var l LockInfo
+			if err2 := rows2.Scan(&l.BlockedPID, &l.BlockedUser, &l.BlockedQuery, &l.BlockedDuration); err2 != nil {
+				continue
+			}
+			l.Time = now
+			l.ConnectionID = conn.ID
+			l.DBType = conn.DBType
+			l.LockMode = "long_running"
+			l.LockType = "query"
+			if l.BlockedDuration > 60 {
+				_ = c.store.RecordLockInfo(l)
+			}
+		}
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var l LockInfo
+		if err := rows.Scan(&l.BlockedPID, &l.BlockedUser, &l.BlockedQuery, &l.BlockedDuration,
+			&l.LockType, &l.LockMode, &l.Granted); err != nil {
+			continue
+		}
+		l.Time = now
+		l.ConnectionID = conn.ID
+		l.DBType = conn.DBType
+		l.DatabaseName = conn.Name
+		_ = c.store.RecordLockInfo(l)
+	}
+}
+
+// ── P2: Replication Lag ──
+
+func (c *Collector) collectReplicationLagAsync(ctx context.Context, conn *connsvc.Connection, now time.Time) {
+	sourceDB, err := openSourceDB(conn)
+	if err != nil {
+		return
+	}
+	defer sourceDB.Close()
+
+	switch conn.DBType {
+	case "postgresql":
+		c.collectPGReplicationLag(ctx, sourceDB, conn, now)
+	case "mysql", "mariadb":
+		c.collectMySQLReplicationLag(ctx, sourceDB, conn, now)
+	}
+}
+
+func (c *Collector) collectPGReplicationLag(ctx context.Context, db *sql.DB, conn *connsvc.Connection, now time.Time) {
+	// Check if this is a replica
+	var inRecovery bool
+	_ = db.QueryRowContext(ctx, `SELECT pg_is_in_recovery()`).Scan(&inRecovery)
+	if !inRecovery {
+		// Primary server — check if it has replicas
+		rows, err := db.QueryContext(ctx, `
+			SELECT
+				COALESCE(application_name, ''),
+				COALESCE(client_addr::text, ''),
+				COALESCE(state, ''),
+				COALESCE(sync_state, ''),
+				COALESCE(write_lag::text, ''),
+				COALESCE(flush_lag::text, ''),
+				COALESCE(replay_lag::text, '')
+			FROM pg_stat_replication`)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var r ReplicationLag
+			var writeLag, flushLag, replayLag sql.NullString
+			if err := rows.Scan(&r.ApplicationName, &r.ClientAddr, &r.State, &r.SyncState,
+				&writeLag, &flushLag, &replayLag); err != nil {
+				continue
+			}
+			r.Time = now
+			r.ConnectionID = conn.ID
+			r.DBType = conn.DBType
+			// Parse lag durations from PostgreSQL interval format
+			if writeLag.Valid {
+				r.WriteLag = parseIntervalSeconds(writeLag.String)
+			}
+			if flushLag.Valid {
+				r.FlushLag = parseIntervalSeconds(flushLag.String)
+			}
+			if replayLag.Valid {
+				r.ReplayLag = parseIntervalSeconds(replayLag.String)
+			}
+			_ = c.store.RecordReplicationLag(r)
+		}
+	}
+}
+
+func (c *Collector) collectMySQLReplicationLag(ctx context.Context, db *sql.DB, conn *connsvc.Connection, now time.Time) {
+	// Try SHOW REPLICA STATUS first (MySQL 8.4+), fallback to SHOW SLAVE STATUS
+	rows, err := db.QueryContext(ctx, `SHOW REPLICA STATUS`)
+	if err != nil {
+		rows, err = db.QueryContext(ctx, `SHOW SLAVE STATUS`)
+		if err != nil {
+			return
+		}
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		cols, err := rows.Columns()
+		if err != nil {
+			continue
+		}
+		vals := make([]sql.NullString, len(cols))
+		ptrs := make([]interface{}, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			continue
+		}
+
+		r := ReplicationLag{
+			Time:         now,
+			ConnectionID: conn.ID,
+			DBType:       conn.DBType,
+		}
+
+		for i, col := range cols {
+			if !vals[i].Valid {
+				continue
+			}
+			switch col {
+			case "Slave_IO_State":
+				r.SlaveIOState = vals[i].String
+			case "Slave_IO_Running":
+				r.SlaveIOThread = vals[i].String
+			case "Slave_SQL_Running":
+				r.SlaveSQLThread = vals[i].String
+			case "Seconds_Behind_Master":
+				r.SecondsBehindMaster = parseInt(vals[i].String)
+			case "Read_Master_Log_Pos":
+				r.ReadMasterLogPos = parseInt64(vals[i].String)
+			case "Exec_Master_Log_Pos":
+				r.ExecMasterLogPos = parseInt64(vals[i].String)
+			case "Relay_Master_Log_File":
+				r.RelayMasterLogFile = vals[i].String
+			case "Last_Errno":
+				r.LastErrno = parseInt(vals[i].String)
+			case "Last_Error":
+				r.LastError = vals[i].String
+			}
+		}
+		_ = c.store.RecordReplicationLag(r)
+	}
+}
+
+// ── P2: Table-Level Metrics ──
+
+func (c *Collector) collectTableMetricsAsync(ctx context.Context, conn *connsvc.Connection, now time.Time) {
+	sourceDB, err := openSourceDB(conn)
+	if err != nil {
+		return
+	}
+	defer sourceDB.Close()
+
+	switch conn.DBType {
+	case "postgresql":
+		c.collectPGTableMetrics(ctx, sourceDB, conn, now)
+	case "mysql", "mariadb":
+		c.collectMySQLTableMetrics(ctx, sourceDB, conn, now)
+	}
+}
+
+func (c *Collector) collectPGTableMetrics(ctx context.Context, db *sql.DB, conn *connsvc.Connection, now time.Time) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT
+			COALESCE(current_database(), '') as database_name,
+			schemaname,
+			relname,
+			COALESCE(pg_table_size(relid), 0) as table_size,
+			COALESCE(pg_indexes_size(relid), 0) as index_size,
+			COALESCE(pg_total_relation_size(relid), 0) as total_size,
+			COALESCE(reltuples::bigint, 0) as row_estimate,
+			COALESCE(reloptions::text, ''),
+			CASE WHEN (n_live_tup + n_dead_tup) > 0
+				THEN ROUND(n_dead_tup::numeric / (n_live_tup + n_dead_tup) * 100, 2)
+				ELSE 0
+			END as dead_tuple_pct
+		FROM pg_stat_user_tables
+		WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+		ORDER BY pg_total_relation_size(relid) DESC
+		LIMIT 10`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var t TableMetric
+		var relOpts sql.NullString
+		if err := rows.Scan(&t.DatabaseName, &t.SchemaName, &t.TableName,
+			&t.TableSize, &t.IndexSize, &t.TotalSize, &t.RowEstimate,
+			&relOpts, &t.DeadTupleRatio); err != nil {
+			continue
+		}
+		t.Time = now
+		t.ConnectionID = conn.ID
+		t.DBType = conn.DBType
+		t.Engine = "PostgreSQL"
+		_ = c.store.RecordTableMetric(t)
+	}
+}
+
+func (c *Collector) collectMySQLTableMetrics(ctx context.Context, db *sql.DB, conn *connsvc.Connection, now time.Time) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT
+			TABLE_SCHEMA,
+			TABLE_SCHEMA,
+			TABLE_NAME,
+			DATA_LENGTH,
+			INDEX_LENGTH,
+			DATA_LENGTH + INDEX_LENGTH,
+			TABLE_ROWS,
+			ENGINE,
+			TABLE_COLLATION
+		FROM information_schema.tables
+		WHERE TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql', 'sys')
+		ORDER BY DATA_LENGTH + INDEX_LENGTH DESC
+		LIMIT 10`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var t TableMetric
+		var engine, collation sql.NullString
+		var tableRows sql.NullInt64
+		if err := rows.Scan(&t.DatabaseName, &t.SchemaName, &t.TableName,
+			&t.TableSize, &t.IndexSize, &t.TotalSize, &tableRows,
+			&engine, &collation); err != nil {
+			continue
+		}
+		t.Time = now
+		t.ConnectionID = conn.ID
+		t.DBType = conn.DBType
+		if engine.Valid {
+			t.Engine = engine.String
+		}
+		if collation.Valid {
+			t.Collation = collation.String
+		}
+		if tableRows.Valid {
+			t.RowEstimate = tableRows.Int64
+		}
+		_ = c.store.RecordTableMetric(t)
+	}
+}
+
+// ── P2 Helpers ──
+
+func parseIntervalSeconds(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	// PostgreSQL interval format: "00:00:00.123456" or "1 day 02:30:00"
+	var hours, minutes int
+	var seconds float64
+	n, _ := fmt.Sscanf(s, "%d:%d:%f", &hours, &minutes, &seconds)
+	if n == 3 {
+		return float64(hours)*3600 + float64(minutes)*60 + seconds
+	}
+	return 0
+}
+
+func parseInt(s string) int {
+	var n int
+	fmt.Sscanf(s, "%d", &n)
+	return n
+}
+
+func parseInt64(s string) int64 {
+	var n int64
+	fmt.Sscanf(s, "%d", &n)
+	return n
 }
 
 // ── Helpers ──

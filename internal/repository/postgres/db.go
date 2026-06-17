@@ -175,6 +175,88 @@ func migrate(db *sql.DB) error {
 	_, _ = db.Exec(`ALTER TABLE db_metrics ADD COLUMN IF NOT EXISTS max_connections INTEGER DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE db_metrics ADD COLUMN IF NOT EXISTS conn_usage_percent REAL DEFAULT 0`)
 
+	// P2 monitoring tables
+	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS autovacuum_info (
+		time              TIMESTAMPTZ NOT NULL,
+		connection_id     TEXT NOT NULL,
+		db_type           TEXT NOT NULL DEFAULT '',
+		table_name        TEXT NOT NULL DEFAULT '',
+		schema_name       TEXT NOT NULL DEFAULT '',
+		table_size_bytes  BIGINT DEFAULT 0,
+		index_size_bytes  BIGINT DEFAULT 0,
+		dead_tuples       BIGINT DEFAULT 0,
+		live_tuples       BIGINT DEFAULT 0,
+		dead_tuple_ratio  REAL DEFAULT 0,
+		last_autovacuum   TIMESTAMPTZ,
+		last_autoanalyze  TIMESTAMPTZ,
+		n_auto_vacuum     BIGINT DEFAULT 0,
+		n_auto_analyze    BIGINT DEFAULT 0,
+		vacuum_threshold  BIGINT DEFAULT 0,
+		mod_since_last_vacuum BIGINT DEFAULT 0,
+		engine            TEXT NOT NULL DEFAULT '',
+		table_rows        BIGINT DEFAULT 0,
+		data_free_bytes   BIGINT DEFAULT 0,
+		table_collation   TEXT NOT NULL DEFAULT ''
+	)`)
+
+	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS lock_info (
+		time              TIMESTAMPTZ NOT NULL,
+		connection_id     TEXT NOT NULL,
+		db_type           TEXT NOT NULL DEFAULT '',
+		database_name     TEXT NOT NULL DEFAULT '',
+		relation_name     TEXT NOT NULL DEFAULT '',
+		lock_type         TEXT NOT NULL DEFAULT '',
+		lock_mode         TEXT NOT NULL DEFAULT '',
+		granted           BOOLEAN DEFAULT TRUE,
+		blocked_pid       INTEGER DEFAULT 0,
+		blocked_user      TEXT NOT NULL DEFAULT '',
+		blocked_query     TEXT NOT NULL DEFAULT '',
+		blocked_duration_seconds REAL DEFAULT 0,
+		blocking_pid      INTEGER DEFAULT 0,
+		blocking_user     TEXT NOT NULL DEFAULT '',
+		blocking_query    TEXT NOT NULL DEFAULT '',
+		is_deadlock       BOOLEAN DEFAULT FALSE
+	)`)
+
+	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS replication_lag (
+		time                  TIMESTAMPTZ NOT NULL,
+		connection_id         TEXT NOT NULL,
+		db_type               TEXT NOT NULL DEFAULT '',
+		application_name      TEXT NOT NULL DEFAULT '',
+		client_addr           TEXT NOT NULL DEFAULT '',
+		state                 TEXT NOT NULL DEFAULT '',
+		sync_state            TEXT NOT NULL DEFAULT '',
+		write_lag_seconds     REAL DEFAULT 0,
+		flush_lag_seconds     REAL DEFAULT 0,
+		replay_lag_seconds    REAL DEFAULT 0,
+		slave_io_state        TEXT NOT NULL DEFAULT '',
+		slave_io_thread       TEXT NOT NULL DEFAULT '',
+		slave_sql_thread      TEXT NOT NULL DEFAULT '',
+		read_master_log_pos   BIGINT DEFAULT 0,
+		exec_master_log_pos   BIGINT DEFAULT 0,
+		relay_master_log_file TEXT NOT NULL DEFAULT '',
+		seconds_behind_master INTEGER DEFAULT 0,
+		last_errno            INTEGER DEFAULT 0,
+		last_error            TEXT NOT NULL DEFAULT ''
+	)`)
+
+	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS table_metrics (
+		time              TIMESTAMPTZ NOT NULL,
+		connection_id     TEXT NOT NULL,
+		db_type           TEXT NOT NULL DEFAULT '',
+		database_name     TEXT NOT NULL DEFAULT '',
+		schema_name       TEXT NOT NULL DEFAULT '',
+		table_name        TEXT NOT NULL DEFAULT '',
+		table_size_bytes  BIGINT DEFAULT 0,
+		index_size_bytes  BIGINT DEFAULT 0,
+		total_size_bytes  BIGINT DEFAULT 0,
+		row_estimate      BIGINT DEFAULT 0,
+		fill_factor       INTEGER DEFAULT 0,
+		dead_tuple_ratio  REAL DEFAULT 0,
+		engine            TEXT NOT NULL DEFAULT '',
+		collation         TEXT NOT NULL DEFAULT ''
+	)`)
+
 	// Seed default settings
 	defaults := map[string]string{
 		"retention_full_default": "7",
@@ -211,6 +293,10 @@ func createHypertables(db *sql.DB) error {
 		{"health_checks", "time"},
 		{"db_metrics", "time"},
 		{"performance_metrics", "time"},
+		{"autovacuum_info", "time"},
+		{"lock_info", "time"},
+		{"replication_lag", "time"},
+		{"table_metrics", "time"},
 	}
 
 	for _, ht := range hypertables {

@@ -1,4 +1,4 @@
-# Backupeer — Database Monitoring & TimescaleDB Migration
+# Jagad — Database Monitoring & TimescaleDB Migration
 
 > **Version:** 1.1
 > **Status:** Draft
@@ -11,7 +11,7 @@
 
 ### Problem Statement
 
-Backupeer saat ini menggunakan **SQLite** sebagai database internal untuk menyimpan konfigurasi (connections, schedules, storage providers) dan riwayat backup. SQLite cukup untuk use case tersebut — tapi ketika kita ingin menambahkan **database monitoring**, ada beberapa keterbatasan:
+Jagad saat ini menggunakan **SQLite** sebagai database internal untuk menyimpan konfigurasi (connections, schedules, storage providers) dan riwayat backup. SQLite cukup untuk use case tersebut — tapi ketika kita ingin menambahkan **database monitoring**, ada beberapa keterbatasan:
 
 | Masalah | Detail |
 |---------|--------|
@@ -28,11 +28,11 @@ Backupeer saat ini menggunakan **SQLite** sebagai database internal untuk menyim
 
 ### Target Audience
 
-Sama dengan Backupeer: DevOps engineers, sysadmins, dan developers yang manage 1-50+ database server.
+Sama dengan Jagad: DevOps engineers, sysadmins, dan developers yang manage 1-50+ database server.
 
 ### Key Differentiator
 
-**Backupeer bukan cuma backup tool — jadi unified database observability platform.** Backup + Monitoring dalam 1 dashboard, 1 deployment.
+**Jagad bukan cuma backup tool — jadi unified database observability platform.** Backup + Monitoring dalam 1 dashboard, 1 deployment.
 
 ---
 
@@ -111,7 +111,7 @@ SQLite ──▶ pgloader ──▶ TimescaleDB
    └── export dump ─────────┘ (alternative)
 ```
 
-Approach: **Rewrite repository layer dari SQLite ke lib/pq (PostgreSQL driver)**. Karena Backupeer pake **clean interface pattern** (`Repository interface`), implementasi tinggal diganti — interface-nya tetap.
+Approach: **Rewrite repository layer dari SQLite ke lib/pq (PostgreSQL driver)**. Karena Jagad pake **clean interface pattern** (`Repository interface`), implementasi tinggal diganti — interface-nya tetap.
 
 ---
 
@@ -302,7 +302,7 @@ ORDER BY hour;
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Backupeer Scheduler                        │
+│                    Jagad Scheduler                        │
 │                                                               │
 │  ┌─────────────────────┐   ┌──────────────────────────────┐  │
 │  │  Backup Cron Jobs    │   │  Monitoring Collector (NEW)  │  │
@@ -375,7 +375,7 @@ func (c *Collector) collectHealthChecks() {
 ```
 
 **Key design decisions:**
-- Collector jalan sebagai **goroutine** di proses Backupeer yang sama (gak perlu service terpisah)
+- Collector jalan sebagai **goroutine** di proses Jagad yang sama (gak perlu service terpisah)
 - Interval default: health check tiap 5 menit, size check tiap 1 jam
 - Pake `context.Context` — pas graceful shutdown, collector stop with all pending writes complete
 - **Gak ada impact ke backup pipeline** — collection dan backup jalan di goroutine terpisah
@@ -404,7 +404,7 @@ func (c *Collector) collectHealthChecks() {
 
 | Task | File | Effort |
 |------|------|--------|
-| Add `BACKUPEER_DB_URL` config | `internal/config/config.go` | ⭐ 15 menit |
+| Add `JAGAD_DATABASE_URL` config | `internal/config/config.go` | ⭐ 15 menit |
 | Create PostgreSQL repository implementations | `internal/repository/*.go` | ⭐⭐⭐ 6-8 jam |
 | Replace `go-sqlite3` with `lib/pq` in go.mod | `go.mod` | ⭐ 15 menit |
 | Update migration system (SQLite → PostgreSQL syntax) | `internal/repository/db.go` | ⭐⭐ 2 jam |
@@ -442,7 +442,7 @@ Kalau monitoring atau migration bermasalah:
 | Skenario | Action | Downtime |
 |----------|--------|----------|
 | **Monitoring collector error** | Stop goroutine, matikan `/api/monitoring/*` | 0 — backup tetap jalan |
-| **TimescaleDB connection lost** | Backupeer pake connection pool — auto reconnect | 0 — retry 5x lalu error log |
+| **TimescaleDB connection lost** | Jagad pake connection pool — auto reconnect | 0 — retry 5x lalu error log |
 | **TimescaleDB corrupt** | Restore dari `pg_dump` backup | < 10 menit |
 | **SQLite → TimescaleDB migration gagal** | Container tetap pake SQLite volume lama | 0 — rollback env, gausa deploy ulang |
 | **Performance degradation** | Monitoring collector punya circuit breaker — mati sendiri kalo DB slow | 0 |
@@ -459,9 +459,9 @@ PostgreSQL log → pgbadger → static HTML report (charts + analysis)
 
 ### Apa yang Kita Ambil dari pgbadger
 
-Kita **tidak meniru arsitektur** pgbadger (log-based, post-mortem, Perl, static HTML) — karena Backupeer real-time, API-based, dan multi-DB. Tapi kita **ambil validated metric set**-nya:
+Kita **tidak meniru arsitektur** pgbadger (log-based, post-mortem, Perl, static HTML) — karena Jagad real-time, API-based, dan multi-DB. Tapi kita **ambil validated metric set**-nya:
 
-| pgbadger Feature | Approach-nya | Backupeer Approach | Layer |
+| pgbadger Feature | Approach-nya | Jagad Approach | Layer |
 |-----------------|-------------|-------------------|-------|
 | **Queries** | Parse log → top N slow queries | Query `pg_stat_statements` / `performance_schema` langsung | Layer 2 |
 | **Connections** | Parse log → session duration | Query `pg_stat_activity` / `SHOW PROCESSLIST` | Layer 1+2 |
@@ -516,6 +516,6 @@ Layer 2: Performance Profiling (P1 — v1.1)
 
 ## 12. Related Documents
 
-- [PRD (existing)](./PRD.md) — Backupeer core PRD
+- [PRD (existing)](./PRD.md) — Jagad core PRD
 - [DESIGN.md](../DESIGN.md) — Brand & design system
 - [Architecture: Encryption & Verification](../site/architecture/security.md)

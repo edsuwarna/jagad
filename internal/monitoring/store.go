@@ -54,6 +54,17 @@ type Store interface {
 	QueryHealthChecks(connectionID string, since, until time.Time, limit int) ([]HealthCheck, error)
 	QueryDBMetrics(connectionID string, since, until time.Time, limit int) ([]DBMetric, error)
 	QueryPerformanceMetrics(connectionID string, since, until time.Time, limit int) ([]PerformanceMetric, error)
+
+	// P2 — Advanced Monitoring
+	RecordAutovacuumInfo(a AutovacuumInfo) error
+	RecordLockInfo(l LockInfo) error
+	RecordReplicationLag(r ReplicationLag) error
+	RecordTableMetric(t TableMetric) error
+
+	QueryAutovacuumInfo(connectionID string, since, until time.Time, limit int) ([]AutovacuumInfo, error)
+	QueryLockInfo(connectionID string, since, until time.Time, limit int) ([]LockInfo, error)
+	QueryReplicationLag(connectionID string, since, until time.Time, limit int) ([]ReplicationLag, error)
+	QueryTableMetrics(connectionID string, since, until time.Time, limit int) ([]TableMetric, error)
 }
 
 // PGStore implements Store using PostgreSQL/TimescaleDB.
@@ -217,6 +228,267 @@ func nullableStr(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+// ── P2 Store Implementations ──
+
+func (s *PGStore) RecordAutovacuumInfo(a AutovacuumInfo) error {
+	var lastVac, lastAna interface{}
+	if a.LastAutovacuum != nil {
+		lastVac = *a.LastAutovacuum
+	}
+	if a.LastAutoanalyze != nil {
+		lastAna = *a.LastAutoanalyze
+	}
+	_, err := s.db.Exec(`INSERT INTO autovacuum_info
+		(time, connection_id, db_type, table_name, schema_name, table_size_bytes, index_size_bytes,
+		 dead_tuples, live_tuples, dead_tuple_ratio, last_autovacuum, last_autoanalyze,
+		 n_auto_vacuum, n_auto_analyze, vacuum_threshold, mod_since_last_vacuum,
+		 engine, table_rows, data_free_bytes, table_collation)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+		a.Time, a.ConnectionID, a.DBType, a.TableName, a.SchemaName, a.TableSize, a.IndexSize,
+		a.DeadTuples, a.LiveTuples, a.DeadTupleRatio, lastVac, lastAna,
+		a.NAutoVacuum, a.NAutoAnalyze, a.VacuumThreshold, a.ModSinceLastVacuum,
+		a.Engine, a.TableRows, a.DataFree, a.TableCollation)
+	return err
+}
+
+func (s *PGStore) RecordLockInfo(l LockInfo) error {
+	_, err := s.db.Exec(`INSERT INTO lock_info
+		(time, connection_id, db_type, database_name, relation_name, lock_type, lock_mode, granted,
+		 blocked_pid, blocked_user, blocked_query, blocked_duration_seconds,
+		 blocking_pid, blocking_user, blocking_query, is_deadlock)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+		l.Time, l.ConnectionID, l.DBType, l.DatabaseName, l.RelationName, l.LockType, l.LockMode, l.Granted,
+		l.BlockedPID, l.BlockedUser, l.BlockedQuery, l.BlockedDuration,
+		l.BlockingPID, l.BlockingUser, l.BlockingQuery, l.IsDeadlock)
+	return err
+}
+
+func (s *PGStore) RecordReplicationLag(r ReplicationLag) error {
+	_, err := s.db.Exec(`INSERT INTO replication_lag
+		(time, connection_id, db_type, application_name, client_addr, state, sync_state,
+		 write_lag_seconds, flush_lag_seconds, replay_lag_seconds,
+		 slave_io_state, slave_io_thread, slave_sql_thread,
+		 read_master_log_pos, exec_master_log_pos, relay_master_log_file,
+		 seconds_behind_master, last_errno, last_error)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+		r.Time, r.ConnectionID, r.DBType, r.ApplicationName, r.ClientAddr, r.State, r.SyncState,
+		r.WriteLag, r.FlushLag, r.ReplayLag,
+		r.SlaveIOState, r.SlaveIOThread, r.SlaveSQLThread,
+		r.ReadMasterLogPos, r.ExecMasterLogPos, r.RelayMasterLogFile,
+		r.SecondsBehindMaster, r.LastErrno, r.LastError)
+	return err
+}
+
+func (s *PGStore) RecordTableMetric(t TableMetric) error {
+	_, err := s.db.Exec(`INSERT INTO table_metrics
+		(time, connection_id, db_type, database_name, schema_name, table_name,
+		 table_size_bytes, index_size_bytes, total_size_bytes, row_estimate, fill_factor,
+		 dead_tuple_ratio, engine, collation)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+		t.Time, t.ConnectionID, t.DBType, t.DatabaseName, t.SchemaName, t.TableName,
+		t.TableSize, t.IndexSize, t.TotalSize, t.RowEstimate, t.FillFactor,
+		t.DeadTupleRatio, t.Engine, t.Collation)
+	return err
+}
+
+// ── P2 Query Implementations ──
+
+func (s *PGStore) QueryAutovacuumInfo(connectionID string, since, until time.Time, limit int) ([]AutovacuumInfo, error) {
+	query := `SELECT time, connection_id, COALESCE(db_type,''), COALESCE(table_name,''), COALESCE(schema_name,''),
+		COALESCE(table_size_bytes,0), COALESCE(index_size_bytes,0),
+		COALESCE(dead_tuples,0), COALESCE(live_tuples,0), COALESCE(dead_tuple_ratio,0),
+		last_autovacuum, last_autoanalyze,
+		COALESCE(n_auto_vacuum,0), COALESCE(n_auto_analyze,0),
+		COALESCE(vacuum_threshold,0), COALESCE(mod_since_last_vacuum,0),
+		COALESCE(engine,''), COALESCE(table_rows,0), COALESCE(data_free_bytes,0), COALESCE(table_collation,'')
+		FROM autovacuum_info WHERE 1=1`
+	var args []interface{}
+	argIdx := 1
+	if connectionID != "" {
+		query += ` AND connection_id = $` + itoa(argIdx)
+		args = append(args, connectionID)
+		argIdx++
+	}
+	if !since.IsZero() {
+		query += ` AND time >= $` + itoa(argIdx)
+		args = append(args, since)
+		argIdx++
+	}
+	if !until.IsZero() {
+		query += ` AND time <= $` + itoa(argIdx)
+		args = append(args, until)
+		argIdx++
+	}
+	query += ` ORDER BY time DESC LIMIT $` + itoa(argIdx)
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []AutovacuumInfo
+	for rows.Next() {
+		var a AutovacuumInfo
+		if err := rows.Scan(&a.Time, &a.ConnectionID, &a.DBType, &a.TableName, &a.SchemaName,
+			&a.TableSize, &a.IndexSize,
+			&a.DeadTuples, &a.LiveTuples, &a.DeadTupleRatio,
+			&a.LastAutovacuum, &a.LastAutoanalyze,
+			&a.NAutoVacuum, &a.NAutoAnalyze,
+			&a.VacuumThreshold, &a.ModSinceLastVacuum,
+			&a.Engine, &a.TableRows, &a.DataFree, &a.TableCollation); err != nil {
+			return nil, err
+		}
+		results = append(results, a)
+	}
+	return results, nil
+}
+
+func (s *PGStore) QueryLockInfo(connectionID string, since, until time.Time, limit int) ([]LockInfo, error) {
+	query := `SELECT time, connection_id, COALESCE(db_type,''), COALESCE(database_name,''), COALESCE(relation_name,''),
+		COALESCE(lock_type,''), COALESCE(lock_mode,''), COALESCE(granted,true),
+		COALESCE(blocked_pid,0), COALESCE(blocked_user,''), COALESCE(blocked_query,''), COALESCE(blocked_duration_seconds,0),
+		COALESCE(blocking_pid,0), COALESCE(blocking_user,''), COALESCE(blocking_query,''), COALESCE(is_deadlock,false)
+		FROM lock_info WHERE 1=1`
+	var args []interface{}
+	argIdx := 1
+	if connectionID != "" {
+		query += ` AND connection_id = $` + itoa(argIdx)
+		args = append(args, connectionID)
+		argIdx++
+	}
+	if !since.IsZero() {
+		query += ` AND time >= $` + itoa(argIdx)
+		args = append(args, since)
+		argIdx++
+	}
+	if !until.IsZero() {
+		query += ` AND time <= $` + itoa(argIdx)
+		args = append(args, until)
+		argIdx++
+	}
+	query += ` ORDER BY time DESC LIMIT $` + itoa(argIdx)
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []LockInfo
+	for rows.Next() {
+		var l LockInfo
+		if err := rows.Scan(&l.Time, &l.ConnectionID, &l.DBType, &l.DatabaseName, &l.RelationName,
+			&l.LockType, &l.LockMode, &l.Granted,
+			&l.BlockedPID, &l.BlockedUser, &l.BlockedQuery, &l.BlockedDuration,
+			&l.BlockingPID, &l.BlockingUser, &l.BlockingQuery, &l.IsDeadlock); err != nil {
+			return nil, err
+		}
+		results = append(results, l)
+	}
+	return results, nil
+}
+
+func (s *PGStore) QueryReplicationLag(connectionID string, since, until time.Time, limit int) ([]ReplicationLag, error) {
+	query := `SELECT time, connection_id, COALESCE(db_type,''), COALESCE(application_name,''), COALESCE(client_addr,''),
+		COALESCE(state,''), COALESCE(sync_state,''),
+		COALESCE(write_lag_seconds,0), COALESCE(flush_lag_seconds,0), COALESCE(replay_lag_seconds,0),
+		COALESCE(slave_io_state,''), COALESCE(slave_io_thread,''), COALESCE(slave_sql_thread,''),
+		COALESCE(read_master_log_pos,0), COALESCE(exec_master_log_pos,0), COALESCE(relay_master_log_file,''),
+		COALESCE(seconds_behind_master,0), COALESCE(last_errno,0), COALESCE(last_error,'')
+		FROM replication_lag WHERE 1=1`
+	var args []interface{}
+	argIdx := 1
+	if connectionID != "" {
+		query += ` AND connection_id = $` + itoa(argIdx)
+		args = append(args, connectionID)
+		argIdx++
+	}
+	if !since.IsZero() {
+		query += ` AND time >= $` + itoa(argIdx)
+		args = append(args, since)
+		argIdx++
+	}
+	if !until.IsZero() {
+		query += ` AND time <= $` + itoa(argIdx)
+		args = append(args, until)
+		argIdx++
+	}
+	query += ` ORDER BY time DESC LIMIT $` + itoa(argIdx)
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []ReplicationLag
+	for rows.Next() {
+		var r ReplicationLag
+		if err := rows.Scan(&r.Time, &r.ConnectionID, &r.DBType, &r.ApplicationName, &r.ClientAddr,
+			&r.State, &r.SyncState,
+			&r.WriteLag, &r.FlushLag, &r.ReplayLag,
+			&r.SlaveIOState, &r.SlaveIOThread, &r.SlaveSQLThread,
+			&r.ReadMasterLogPos, &r.ExecMasterLogPos, &r.RelayMasterLogFile,
+			&r.SecondsBehindMaster, &r.LastErrno, &r.LastError); err != nil {
+			return nil, err
+		}
+		results = append(results, r)
+	}
+	return results, nil
+}
+
+func (s *PGStore) QueryTableMetrics(connectionID string, since, until time.Time, limit int) ([]TableMetric, error) {
+	query := `SELECT time, connection_id, COALESCE(db_type,''), COALESCE(database_name,''), COALESCE(schema_name,''),
+		COALESCE(table_name,''),
+		COALESCE(table_size_bytes,0), COALESCE(index_size_bytes,0), COALESCE(total_size_bytes,0),
+		COALESCE(row_estimate,0), COALESCE(fill_factor,0),
+		COALESCE(dead_tuple_ratio,0), COALESCE(engine,''), COALESCE(collation,'')
+		FROM table_metrics WHERE 1=1`
+	var args []interface{}
+	argIdx := 1
+	if connectionID != "" {
+		query += ` AND connection_id = $` + itoa(argIdx)
+		args = append(args, connectionID)
+		argIdx++
+	}
+	if !since.IsZero() {
+		query += ` AND time >= $` + itoa(argIdx)
+		args = append(args, since)
+		argIdx++
+	}
+	if !until.IsZero() {
+		query += ` AND time <= $` + itoa(argIdx)
+		args = append(args, until)
+		argIdx++
+	}
+	query += ` ORDER BY total_size_bytes DESC LIMIT $` + itoa(argIdx)
+	args = append(args, limit)
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []TableMetric
+	for rows.Next() {
+		var t TableMetric
+		if err := rows.Scan(&t.Time, &t.ConnectionID, &t.DBType, &t.DatabaseName, &t.SchemaName,
+			&t.TableName,
+			&t.TableSize, &t.IndexSize, &t.TotalSize,
+			&t.RowEstimate, &t.FillFactor,
+			&t.DeadTupleRatio, &t.Engine, &t.Collation); err != nil {
+			return nil, err
+		}
+		results = append(results, t)
+	}
+	return results, nil
 }
 
 func itoa(i int) string {

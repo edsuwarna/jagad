@@ -2448,6 +2448,50 @@ async function renderMonitoring(el) {
         <tbody id="mon-slow-query-table"></tbody>
       </table>
     </div>
+
+    <!-- P2: Vacuum / Optimizer -->
+    <div class="section-header-v2">
+      <h3><i data-lucide="spray-can" size="14" style="margin-right:6px;"></i> Autovacuum & Optimizer (Top 20)</h3>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead><tr><th>Connection</th><th>Schema.Table</th><th>Dead Tuples</th><th>Dead %</th><th>Last Vacuum</th><th>Last Analyze</th><th>Table Size</th><th>Engine</th></tr></thead>
+        <tbody id="mon-autovacuum-table"></tbody>
+      </table>
+    </div>
+
+    <!-- P2: Lock Detection -->
+    <div class="section-header-v2">
+      <h3><i data-lucide="lock" size="14" style="margin-right:6px;"></i> Lock Conflicts <span id="mon-lock-badge" class="badge" style="display:none;margin-left:6px;"></span></h3>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead><tr><th>Connection</th><th>Database</th><th>Blocked PID</th><th>Blocked Query</th><th>Duration</th><th>Blocking PID</th><th>Blocking Query</th><th>Lock Type</th></tr></thead>
+        <tbody id="mon-lock-table"></tbody>
+      </table>
+    </div>
+
+    <!-- P2: Replication Lag -->
+    <div class="section-header-v2">
+      <h3><i data-lucide="git-branch" size="14" style="margin-right:6px;"></i> Replication Status</h3>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead><tr><th>Connection</th><th>Type</th><th>State</th><th>Sync</th><th>Write Lag</th><th>Flush Lag</th><th>Replay Lag</th><th>Seconds Behind</th></tr></thead>
+        <tbody id="mon-replication-table"></tbody>
+      </table>
+    </div>
+
+    <!-- P2: Table-Level Metrics -->
+    <div class="section-header-v2">
+      <h3><i data-lucide="layers" size="14" style="margin-right:6px;"></i> Largest Tables (Top 10)</h3>
+    </div>
+    <div class="table-card">
+      <table>
+        <thead><tr><th>Connection</th><th>Schema.Table</th><th>Type</th><th>Table Size</th><th>Index Size</th><th>Total Size</th><th>Est. Rows</th><th>Engine</th></tr></thead>
+        <tbody id="mon-table-metrics-table"></tbody>
+      </table>
+    </div>
   `;
   lucide.createIcons();
 
@@ -2498,7 +2542,8 @@ async function loadMonitoringData() {
   if (refreshStatus) refreshStatus.textContent = 'Refreshing...';
 
   try {
-    const [conns, healthData, metricData, perfData, trendsData, slowestData, freshnessData] = await Promise.all([
+    const [conns, healthData, metricData, perfData, trendsData, slowestData, freshnessData,
+      autovacuumData, lockData, replicationData, tableData] = await Promise.all([
       API.get('/api/connections').catch(() => []),
       API.get('/api/monitoring/health?limit=100').catch(() => []),
       API.get('/api/monitoring/metrics?limit=100').catch(() => []),
@@ -2506,6 +2551,10 @@ async function loadMonitoringData() {
       API.get('/api/backups/analytics/trends?days=14').catch(() => null),
       API.get('/api/backups/analytics/slowest?limit=10').catch(() => null),
       API.get('/api/backups/analytics/freshness?hours=24').catch(() => null),
+      API.get('/api/monitoring/autovacuum?limit=50').catch(() => []),
+      API.get('/api/monitoring/locks?limit=50').catch(() => []),
+      API.get('/api/monitoring/replication?limit=50').catch(() => []),
+      API.get('/api/monitoring/tables?limit=10').catch(() => []),
     ]);
 
     if (refreshStatus) refreshStatus.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
@@ -2638,6 +2687,135 @@ async function loadMonitoringData() {
           <td class="mono">${p.rows_avg != null ? Math.round(p.rows_avg) : 0}</td>
         </tr>`;
       }).join('');
+    }
+
+    // ── P2: Autovacuum ──
+    const vacTbody = document.getElementById('mon-autovacuum-table');
+    if (vacTbody) {
+      if (!autovacuumData || autovacuumData.length === 0) {
+        vacTbody.innerHTML = '<tr><td colspan="8"><div class="empty-state-v2"><p>No vacuum data</p><div class="sub">Collects top 20 tables with dead tuples (PG) or table status (MySQL)</div></div></td></tr>';
+      } else {
+        vacTbody.innerHTML = autovacuumData.map(a => {
+          const conn = connMap[a.connection_id] || {};
+          const name = conn.name || a.connection_id.slice(0, 8);
+          const fullName = (a.schema_name ? escHtml(a.schema_name) + '.' : '') + escHtml(a.table_name);
+          const deadPct = a.dead_tuple_ratio != null ? a.dead_tuple_ratio.toFixed(1) + '%' : '—';
+          const deadColor = a.dead_tuple_ratio > 20 ? 'var(--accent-red)' : a.dead_tuple_ratio > 10 ? 'var(--accent-amber)' : 'inherit';
+          const lastVac = a.last_autovacuum ? timeAgo(a.last_autovacuum) : '—';
+          const lastAna = a.last_autoanalyze ? timeAgo(a.last_autoanalyze) : '—';
+          const sizeStr = a.table_size_bytes ? formatBytes(a.table_size_bytes) : '—';
+          const engine = a.engine || '—';
+          return `<tr>
+            <td>${escHtml(name)}</td>
+            <td class="mono">${fullName}</td>
+            <td class="mono">${a.dead_tuples != null ? a.dead_tuples.toLocaleString() : '—'}</td>
+            <td class="mono" style="color:${deadColor}">${deadPct}</td>
+            <td style="font-size:12px;color:var(--text-tertiary)">${lastVac}</td>
+            <td style="font-size:12px;color:var(--text-tertiary)">${lastAna}</td>
+            <td class="mono">${sizeStr}</td>
+            <td><span class="badge badge-mysql">${escHtml(engine.slice(0,4))}</span></td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    // ── P2: Locks ──
+    const lockTbody = document.getElementById('mon-lock-table');
+    const lockBadge = document.getElementById('mon-lock-badge');
+    if (lockTbody) {
+      if (!lockData || lockData.length === 0) {
+        lockTbody.innerHTML = '<tr><td colspan="8"><div class="empty-state-v2"><p>No active lock conflicts detected</p></div></td></tr>';
+        if (lockBadge) lockBadge.style.display = 'none';
+      } else {
+        if (lockBadge) {
+          lockBadge.textContent = lockData.length + ' waiting';
+          lockBadge.style.display = 'inline-block';
+          lockBadge.style.background = 'var(--accent-red)';
+          lockBadge.style.color = '#fff';
+        }
+        lockTbody.innerHTML = lockData.map(l => {
+          const conn = connMap[l.connection_id] || {};
+          const name = conn.name || l.connection_id.slice(0, 8);
+          const duration = l.blocked_duration_seconds ? formatDuration(l.blocked_duration_seconds) : '—';
+          const blockedQuery = (l.blocked_query || '').substring(0, 60);
+          const blockingQuery = (l.blocking_query || '').substring(0, 60);
+          const lockType = l.lock_type || l.lock_mode || '—';
+          return `<tr>
+            <td>${escHtml(name)}</td>
+            <td>${escHtml(l.database_name || '—')}</td>
+            <td class="mono">${l.blocked_pid || '—'}</td>
+            <td class="mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(l.blocked_query || '')}">${escHtml(blockedQuery)}</td>
+            <td class="mono" style="color:${l.blocked_duration_seconds > 60 ? 'var(--accent-red)' : 'var(--accent-amber)'}">${duration}</td>
+            <td class="mono">${l.blocking_pid || '—'}</td>
+            <td class="mono" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(l.blocking_query || '')}">${escHtml(blockingQuery)}</td>
+            <td><span class="badge badge-warning">${escHtml(lockType)}</span></td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    // ── P2: Replication ──
+    const replTbody = document.getElementById('mon-replication-table');
+    if (replTbody) {
+      if (!replicationData || replicationData.length === 0) {
+        replTbody.innerHTML = '<tr><td colspan="8"><div class="empty-state-v2"><p>No replication configured or detected</p><div class="sub">Monitors pg_stat_replication (PG) and SHOW REPLICA STATUS (MySQL)</div></div></td></tr>';
+      } else {
+        replTbody.innerHTML = replicationData.map(r => {
+          const conn = connMap[r.connection_id] || {};
+          const name = conn.name || r.connection_id.slice(0, 8);
+          const dbBadge = conn.db_type ? getDbBadgeClass(conn.db_type) : '';
+          const badgeHtml = conn.db_type ? `<span class="badge badge-${dbBadge}">${conn.db_type.toUpperCase().slice(0,2)}</span>` : '';
+          const state = r.state || r.slave_io_state || '—';
+          const syncState = r.sync_state || (r.slave_io_thread === 'Yes' ? 'connected' : r.slave_io_thread || '—');
+          const writeLag = r.write_lag_seconds != null ? r.write_lag_seconds.toFixed(3) + 's' : '—';
+          const flushLag = r.flush_lag_seconds != null ? r.flush_lag_seconds.toFixed(3) + 's' : '—';
+          const replayLag = r.replay_lag_seconds != null ? r.replay_lag_seconds.toFixed(3) + 's' : '—';
+          const secBehind = r.seconds_behind_master != null ? r.seconds_behind_master + 's' : '—';
+          const lagColor = r.seconds_behind_master > 300 ? 'var(--accent-red)' : r.seconds_behind_master > 60 ? 'var(--accent-amber)' : 'inherit';
+          return `<tr>
+            <td>${escHtml(name)}</td>
+            <td>${badgeHtml}</td>
+            <td><span class="status-pill ${r.state === 'streaming' ? 'healthy' : 'degraded'}"><span class="status-dot ${r.state === 'streaming' ? 'green' : 'amber'}"></span> ${escHtml(state)}</span></td>
+            <td style="font-size:12px">${escHtml(syncState)}</td>
+            <td class="mono">${writeLag}</td>
+            <td class="mono">${flushLag}</td>
+            <td class="mono">${replayLag}</td>
+            <td class="mono" style="color:${lagColor}">${secBehind}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    // ── P2: Table Metrics ──
+    const tblTbody = document.getElementById('mon-table-metrics-table');
+    if (tblTbody) {
+      if (!tableData || tableData.length === 0) {
+        tblTbody.innerHTML = '<tr><td colspan="8"><div class="empty-state-v2"><p>No table size data yet</p><div class="sub">Collects top 10 largest tables from each connection</div></div></td></tr>';
+      } else {
+        tblTbody.innerHTML = tableData.map(t => {
+          const conn = connMap[t.connection_id] || {};
+          const name = conn.name || t.connection_id.slice(0, 8);
+          const dbBadge = conn.db_type ? getDbBadgeClass(conn.db_type) : '';
+          const badgeHtml = conn.db_type ? `<span class="badge badge-${dbBadge}">${conn.db_type.toUpperCase().slice(0,2)}</span>` : '';
+          const fullName = (t.schema_name ? escHtml(t.schema_name) + '.' : '') + escHtml(t.table_name);
+          const tblSize = formatBytes(t.table_size_bytes || 0);
+          const idxSize = formatBytes(t.index_size_bytes || 0);
+          const totalSize = formatBytes(t.total_size_bytes || 0);
+          const rowsEst = t.row_estimate ? t.row_estimate.toLocaleString() : '—';
+          const engine = t.engine || '—';
+          const rowColor = t.total_size_bytes > 10737418240 ? 'var(--accent-red)' : t.total_size_bytes > 1073741824 ? 'var(--accent-amber)' : 'inherit'; // >10GB red, >1GB amber
+          return `<tr>
+            <td>${escHtml(name)}</td>
+            <td class="mono">${fullName}</td>
+            <td>${badgeHtml}</td>
+            <td class="mono">${tblSize}</td>
+            <td class="mono">${idxSize}</td>
+            <td class="mono" style="color:${rowColor};font-weight:500;">${totalSize}</td>
+            <td class="mono">${rowsEst}</td>
+            <td><span class="badge badge-mysql">${escHtml(engine.slice(0,4))}</span></td>
+          </tr>`;
+        }).join('');
+      }
     }
 
     // ── Backup Analytics ──
@@ -2789,6 +2967,15 @@ function statusPill(status) {
     case 'running': case 'verifying': return 'running';
     default: return '';
   }
+}
+
+function formatDuration(seconds) {
+  if (!seconds || seconds <= 0) return '—';
+  if (seconds < 60) return Math.round(seconds) + 's';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.round(seconds % 60) + 's';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h + 'h ' + m + 'm';
 }
 
 function formatBytes(bytes) {

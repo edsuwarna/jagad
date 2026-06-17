@@ -1,4 +1,4 @@
-# Backupeer — Product Requirements Document
+# Jagad — Product Requirements Document
 
 **Status:** Draft v1  
 **Date:** 2026-06-16  
