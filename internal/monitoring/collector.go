@@ -548,7 +548,7 @@ func (c *Collector) collectPGAutovacuum(ctx context.Context, db *sql.DB, conn *c
 			END as dead_tuple_pct,
 			last_autovacuum,
 			last_autoanalyze,
-			COALESCE(n_tup_mod, 0) - COALESCE(n_tup_mod, 0) as mod_since_vacuum,
+			0 as mod_since_vacuum,
 			autovacuum_count,
 			autoanalyze_count,
 			COALESCE(pg_total_relation_size(relid), 0) as total_size,
@@ -919,8 +919,7 @@ func (c *Collector) collectPGTableMetrics(ctx context.Context, db *sql.DB, conn 
 			COALESCE(pg_table_size(relid), 0) as table_size,
 			COALESCE(pg_indexes_size(relid), 0) as index_size,
 			COALESCE(pg_total_relation_size(relid), 0) as total_size,
-			COALESCE(reltuples::bigint, 0) as row_estimate,
-			COALESCE(reloptions::text, ''),
+			COALESCE(n_live_tup, 0) as row_estimate,
 			CASE WHEN (n_live_tup + n_dead_tup) > 0
 				THEN ROUND(n_dead_tup::numeric / (n_live_tup + n_dead_tup) * 100, 2)
 				ELSE 0
@@ -936,10 +935,9 @@ func (c *Collector) collectPGTableMetrics(ctx context.Context, db *sql.DB, conn 
 
 	for rows.Next() {
 		var t TableMetric
-		var relOpts sql.NullString
 		if err := rows.Scan(&t.DatabaseName, &t.SchemaName, &t.TableName,
 			&t.TableSize, &t.IndexSize, &t.TotalSize, &t.RowEstimate,
-			&relOpts, &t.DeadTupleRatio); err != nil {
+			&t.DeadTupleRatio); err != nil {
 			continue
 		}
 		t.Time = now

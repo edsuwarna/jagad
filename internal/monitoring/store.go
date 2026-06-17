@@ -285,7 +285,7 @@ func (s *PGStore) RecordTableMetric(t TableMetric) error {
 	_, err := s.db.Exec(`INSERT INTO table_metrics
 		(time, connection_id, db_type, database_name, schema_name, table_name,
 		 table_size_bytes, index_size_bytes, total_size_bytes, row_estimate, fill_factor,
-		 dead_tuple_ratio, engine, collation)
+		 dead_tuple_ratio, engine, "collation")
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 		t.Time, t.ConnectionID, t.DBType, t.DatabaseName, t.SchemaName, t.TableName,
 		t.TableSize, t.IndexSize, t.TotalSize, t.RowEstimate, t.FillFactor,
@@ -448,7 +448,7 @@ func (s *PGStore) QueryTableMetrics(connectionID string, since, until time.Time,
 		COALESCE(table_name,''),
 		COALESCE(table_size_bytes,0), COALESCE(index_size_bytes,0), COALESCE(total_size_bytes,0),
 		COALESCE(row_estimate,0), COALESCE(fill_factor,0),
-		COALESCE(dead_tuple_ratio,0), COALESCE(engine,''), COALESCE(collation,'')
+		COALESCE(dead_tuple_ratio,0), COALESCE(engine,''), COALESCE("collation",'')
 		FROM table_metrics WHERE 1=1`
 	var args []interface{}
 	argIdx := 1

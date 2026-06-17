@@ -1,6 +1,6 @@
 package monitoring
-
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -94,7 +94,7 @@ func (h *Handler) TriggerCollect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		if err := h.collector.CollectNow(r.Context()); err != nil {
+		if err := h.collector.CollectNow(context.Background()); err != nil {
 			// Log only — collector errors are handled internally
 		}
 	}()

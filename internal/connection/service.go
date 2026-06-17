@@ -135,7 +135,7 @@ func testConnection(conn *Connection) error {
 func testPostgreSQL(conn *Connection) error {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s connect_timeout=5",
 		conn.Host, conn.Port, conn.Username, conn.Password, conn.SSLMode)
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func testMySQL(conn *Connection) error {
 func discoverPostgreSQL(conn *Connection) ([]string, error) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s connect_timeout=5",
 		conn.Host, conn.Port, conn.Username, conn.Password, conn.SSLMode)
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}

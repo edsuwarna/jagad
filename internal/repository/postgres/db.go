@@ -254,7 +254,7 @@ func migrate(db *sql.DB) error {
 		fill_factor       INTEGER DEFAULT 0,
 		dead_tuple_ratio  REAL DEFAULT 0,
 		engine            TEXT NOT NULL DEFAULT '',
-		collation         TEXT NOT NULL DEFAULT ''
+	    "collation"         TEXT NOT NULL DEFAULT ''
 	)`)
 
 	// Seed default settings
