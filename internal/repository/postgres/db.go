@@ -33,12 +33,38 @@ func Open(dsn string) (*sql.DB, error) {
 		return nil, fmt.Errorf("create hypertables: %w", err)
 	}
 
+	if err := migrateDataFromPublic(db); err != nil {
+		return nil, fmt.Errorf("migrate public data: %w", err)
+	}
+
 	return db, nil
 }
 
 func migrate(db *sql.DB) error {
+	// ── Create new schemas ──
+	_, err := db.Exec(`CREATE SCHEMA IF NOT EXISTS jagad`)
+	if err != nil {
+		return fmt.Errorf("create jagad schema: %w", err)
+	}
+	_, err = db.Exec(`CREATE SCHEMA IF NOT EXISTS metrics`)
+	if err != nil {
+		return fmt.Errorf("create metrics schema: %w", err)
+	}
+	_, err = db.Exec(`CREATE SCHEMA IF NOT EXISTS logs`)
+	if err != nil {
+		return fmt.Errorf("create logs schema: %w", err)
+	}
+
+	// ── Set database-level search_path ──
+	// This makes unqualified table names resolve to jagad → metrics → logs → public
+	// Existing installations with data in public still work; new data goes to new schemas.
+	// Set for current session + persist for future connections.
+	_, _ = db.Exec(`SET search_path TO "$user", jagad, metrics, logs, public`)
+	_, _ = db.Exec(`ALTER DATABASE jagad SET search_path TO "$user", jagad, metrics, logs, public`)
+
+	// ── Relational tables → jagad schema ──
 	schema := `
-	CREATE TABLE IF NOT EXISTS connections (
+	CREATE TABLE IF NOT EXISTS jagad.connections (
 		id          TEXT PRIMARY KEY,
 		name        TEXT NOT NULL,
 		db_type     TEXT NOT NULL CHECK(db_type IN ('postgresql', 'mysql', 'mariadb')),
@@ -51,9 +77,9 @@ func migrate(db *sql.DB) error {
 		updated_at  TIMESTAMPTZ DEFAULT NOW()
 	);
 
-	CREATE TABLE IF NOT EXISTS connection_databases (
+	CREATE TABLE IF NOT EXISTS jagad.connection_databases (
 		id              TEXT PRIMARY KEY,
-		connection_id   TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+		connection_id   TEXT NOT NULL REFERENCES jagad.connections(id) ON DELETE CASCADE,
 		db_name         TEXT NOT NULL,
 		is_selected     INTEGER DEFAULT 1,
 		size_bytes      BIGINT,
@@ -61,7 +87,7 @@ func migrate(db *sql.DB) error {
 		UNIQUE(connection_id, db_name)
 	);
 
-	CREATE TABLE IF NOT EXISTS storage_providers (
+	CREATE TABLE IF NOT EXISTS jagad.storage_providers (
 		id                  TEXT PRIMARY KEY,
 		name                TEXT NOT NULL,
 		provider_type       TEXT NOT NULL DEFAULT 's3' CHECK(provider_type IN ('s3', 'r2', 'minio', 'gcs', 'b2', 's3-compat')),
@@ -76,13 +102,13 @@ func migrate(db *sql.DB) error {
 		updated_at          TIMESTAMPTZ DEFAULT NOW()
 	);
 
-	CREATE TABLE IF NOT EXISTS schedules (
+	CREATE TABLE IF NOT EXISTS jagad.schedules (
 		id              TEXT PRIMARY KEY,
-		connection_id   TEXT NOT NULL REFERENCES connections(id),
-		database_id     TEXT NOT NULL REFERENCES connection_databases(id),
+		connection_id   TEXT NOT NULL REFERENCES jagad.connections(id),
+		database_id     TEXT NOT NULL REFERENCES jagad.connection_databases(id),
 		backup_type     TEXT NOT NULL CHECK(backup_type IN ('full', 'incremental')),
 		cron_expr       TEXT NOT NULL,
-		storage_provider_id TEXT REFERENCES storage_providers(id),
+		storage_provider_id TEXT REFERENCES jagad.storage_providers(id),
 		encryption_enabled INTEGER DEFAULT 1,
 		encryption_key_id TEXT,
 		verify_enabled  INTEGER DEFAULT 0,
@@ -95,15 +121,15 @@ func migrate(db *sql.DB) error {
 		created_at      TIMESTAMPTZ DEFAULT NOW()
 	);
 
-	CREATE TABLE IF NOT EXISTS backups (
+	CREATE TABLE IF NOT EXISTS jagad.backups (
 		id              TEXT PRIMARY KEY,
-		connection_id   TEXT NOT NULL REFERENCES connections(id),
-		database_id     TEXT NOT NULL REFERENCES connection_databases(id),
-		schedule_id     TEXT REFERENCES schedules(id),
+		connection_id   TEXT NOT NULL REFERENCES jagad.connections(id),
+		database_id     TEXT NOT NULL REFERENCES jagad.connection_databases(id),
+		schedule_id     TEXT REFERENCES jagad.schedules(id),
 		backup_type     TEXT NOT NULL CHECK(backup_type IN ('full', 'incremental')),
 		status          TEXT NOT NULL CHECK(status IN ('running', 'success', 'failed', 'verifying')),
 		storage_path    TEXT NOT NULL,
-		storage_provider_id TEXT REFERENCES storage_providers(id),
+		storage_provider_id TEXT REFERENCES jagad.storage_providers(id),
 		size_bytes      BIGINT,
 		encrypted_size_bytes BIGINT,
 		encryption_algo TEXT DEFAULT 'aes-256-gcm',
@@ -122,10 +148,10 @@ func migrate(db *sql.DB) error {
 		created_at      TIMESTAMPTZ DEFAULT NOW()
 	);
 
-	CREATE TABLE IF NOT EXISTS restores (
+	CREATE TABLE IF NOT EXISTS jagad.restores (
 		id              TEXT PRIMARY KEY,
-		backup_id       TEXT NOT NULL REFERENCES backups(id),
-		target_connection TEXT REFERENCES connections(id),
+		backup_id       TEXT NOT NULL REFERENCES jagad.backups(id),
+		target_connection TEXT REFERENCES jagad.connections(id),
 		status          TEXT NOT NULL CHECK(status IN ('running', 'success', 'failed')),
 		duration_ms     BIGINT,
 		log_output      TEXT,
@@ -134,7 +160,7 @@ func migrate(db *sql.DB) error {
 		created_at      TIMESTAMPTZ DEFAULT NOW()
 	);
 
-	CREATE TABLE IF NOT EXISTS notifications (
+	CREATE TABLE IF NOT EXISTS jagad.notifications (
 		id              TEXT PRIMARY KEY,
 		name            TEXT NOT NULL,
 		notif_type      TEXT NOT NULL CHECK(notif_type IN ('telegram', 'discord', 'slack')),
@@ -143,7 +169,7 @@ func migrate(db *sql.DB) error {
 		updated_at      TIMESTAMPTZ DEFAULT NOW()
 	);
 
-	CREATE TABLE IF NOT EXISTS encryption_keys (
+	CREATE TABLE IF NOT EXISTS jagad.encryption_keys (
 		id              TEXT PRIMARY KEY,
 		alias           TEXT NOT NULL UNIQUE,
 		key_derivation  TEXT NOT NULL CHECK(key_derivation IN ('env', 'vault', 'manual')),
@@ -154,29 +180,95 @@ func migrate(db *sql.DB) error {
 		is_active       INTEGER DEFAULT 1
 	);
 
-	CREATE TABLE IF NOT EXISTS app_settings (
+	CREATE TABLE IF NOT EXISTS jagad.app_settings (
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	);
 
-	CREATE INDEX IF NOT EXISTS idx_conn_db_connection ON connection_databases(connection_id);
-	CREATE INDEX IF NOT EXISTS idx_backups_connection ON backups(connection_id);
-	CREATE INDEX IF NOT EXISTS idx_backups_database ON backups(database_id);
-	CREATE INDEX IF NOT EXISTS idx_backups_status ON backups(status);
-	CREATE INDEX IF NOT EXISTS idx_schedules_connection ON schedules(connection_id);
+	CREATE INDEX IF NOT EXISTS idx_conn_db_connection ON jagad.connection_databases(connection_id);
+	CREATE INDEX IF NOT EXISTS idx_backups_connection ON jagad.backups(connection_id);
+	CREATE INDEX IF NOT EXISTS idx_backups_database ON jagad.backups(database_id);
+	CREATE INDEX IF NOT EXISTS idx_backups_status ON jagad.backups(status);
+	CREATE INDEX IF NOT EXISTS idx_schedules_connection ON jagad.schedules(connection_id);
 	`
 
-	_, err := db.Exec(schema)
+	_, err = db.Exec(schema)
 	if err != nil {
-		return err
+		return fmt.Errorf("create jagad tables: %w", err)
 	}
 
-	// Add new columns if not exist (for existing deployments)
-	_, _ = db.Exec(`ALTER TABLE db_metrics ADD COLUMN IF NOT EXISTS max_connections INTEGER DEFAULT 0`)
-	_, _ = db.Exec(`ALTER TABLE db_metrics ADD COLUMN IF NOT EXISTS conn_usage_percent REAL DEFAULT 0`)
+	// ── Timescale tables → metrics schema ──
+	// Note: The 3 main hypertables (health_checks, db_metrics, performance_metrics)
+	// are created inside createHypertables(). The P2 tables are created here
+	// so they can be upgraded to hypertables later.
+	metricsSchema := `
+	CREATE TABLE IF NOT EXISTS metrics.health_checks (
+		time              TIMESTAMPTZ NOT NULL,
+		connection_id     TEXT NOT NULL,
+		status            TEXT,
+		response_time_ms  INTEGER,
+		active_connections INTEGER,
+		db_size_bytes     BIGINT,
+		growth_bytes      BIGINT,
+		cache_hit_ratio   REAL,
+		qps               INTEGER,
+		connections_total INTEGER,
+		query_id          TEXT,
+		query_text        TEXT,
+		mean_time_ms      REAL,
+		total_time_ms     REAL,
+		calls             INTEGER,
+		rows_avg          REAL,
+		db_type           TEXT,
+		error_message     TEXT,
+		metadata          JSONB
+	);
 
-	// P2 monitoring tables
-	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS autovacuum_info (
+	CREATE TABLE IF NOT EXISTS metrics.db_metrics (
+		time              TIMESTAMPTZ NOT NULL,
+		connection_id     TEXT NOT NULL,
+		status            TEXT,
+		response_time_ms  INTEGER,
+		active_connections INTEGER,
+		db_size_bytes     BIGINT,
+		growth_bytes      BIGINT,
+		cache_hit_ratio   REAL,
+		qps               INTEGER,
+		connections_total INTEGER,
+		query_id          TEXT,
+		query_text        TEXT,
+		mean_time_ms      REAL,
+		total_time_ms     REAL,
+		calls             INTEGER,
+		rows_avg          REAL,
+		db_type           TEXT,
+		error_message     TEXT,
+		metadata          JSONB
+	);
+
+	CREATE TABLE IF NOT EXISTS metrics.performance_metrics (
+		time              TIMESTAMPTZ NOT NULL,
+		connection_id     TEXT NOT NULL,
+		status            TEXT,
+		response_time_ms  INTEGER,
+		active_connections INTEGER,
+		db_size_bytes     BIGINT,
+		growth_bytes      BIGINT,
+		cache_hit_ratio   REAL,
+		qps               INTEGER,
+		connections_total INTEGER,
+		query_id          TEXT,
+		query_text        TEXT,
+		mean_time_ms      REAL,
+		total_time_ms     REAL,
+		calls             INTEGER,
+		rows_avg          REAL,
+		db_type           TEXT,
+		error_message     TEXT,
+		metadata          JSONB
+	);
+
+	CREATE TABLE IF NOT EXISTS metrics.autovacuum_info (
 		time              TIMESTAMPTZ NOT NULL,
 		connection_id     TEXT NOT NULL,
 		db_type           TEXT NOT NULL DEFAULT '',
@@ -197,9 +289,9 @@ func migrate(db *sql.DB) error {
 		table_rows        BIGINT DEFAULT 0,
 		data_free_bytes   BIGINT DEFAULT 0,
 		table_collation   TEXT NOT NULL DEFAULT ''
-	)`)
+	);
 
-	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS lock_info (
+	CREATE TABLE IF NOT EXISTS metrics.lock_info (
 		time              TIMESTAMPTZ NOT NULL,
 		connection_id     TEXT NOT NULL,
 		db_type           TEXT NOT NULL DEFAULT '',
@@ -216,9 +308,9 @@ func migrate(db *sql.DB) error {
 		blocking_user     TEXT NOT NULL DEFAULT '',
 		blocking_query    TEXT NOT NULL DEFAULT '',
 		is_deadlock       BOOLEAN DEFAULT FALSE
-	)`)
+	);
 
-	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS replication_lag (
+	CREATE TABLE IF NOT EXISTS metrics.replication_lag (
 		time                  TIMESTAMPTZ NOT NULL,
 		connection_id         TEXT NOT NULL,
 		db_type               TEXT NOT NULL DEFAULT '',
@@ -238,9 +330,9 @@ func migrate(db *sql.DB) error {
 		seconds_behind_master INTEGER DEFAULT 0,
 		last_errno            INTEGER DEFAULT 0,
 		last_error            TEXT NOT NULL DEFAULT ''
-	)`)
+	);
 
-	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS table_metrics (
+	CREATE TABLE IF NOT EXISTS metrics.table_metrics (
 		time              TIMESTAMPTZ NOT NULL,
 		connection_id     TEXT NOT NULL,
 		db_type           TEXT NOT NULL DEFAULT '',
@@ -255,9 +347,39 @@ func migrate(db *sql.DB) error {
 		dead_tuple_ratio  REAL DEFAULT 0,
 		engine            TEXT NOT NULL DEFAULT '',
 	    "collation"         TEXT NOT NULL DEFAULT ''
-	)`)
+	);
 
-	// Seed default settings
+	-- Add missing columns (for existing deployments that had partial migration)
+	ALTER TABLE IF EXISTS metrics.db_metrics ADD COLUMN IF NOT EXISTS max_connections INTEGER DEFAULT 0;
+	ALTER TABLE IF EXISTS metrics.db_metrics ADD COLUMN IF NOT EXISTS conn_usage_percent REAL DEFAULT 0;
+	`
+
+	_, err = db.Exec(metricsSchema)
+	if err != nil {
+		return fmt.Errorf("create metrics tables: %w", err)
+	}
+
+	// ── Audit log table → logs schema ──
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS logs.audit_logs (
+			id              BIGSERIAL PRIMARY KEY,
+			actor_id        TEXT NOT NULL DEFAULT 'system',
+			action          TEXT NOT NULL,
+			target_type     TEXT NOT NULL DEFAULT '',
+			target_id       TEXT NOT NULL DEFAULT '',
+			metadata        JSONB DEFAULT '{}',
+			ip_address      INET,
+			created_at      TIMESTAMPTZ DEFAULT NOW()
+		);
+		CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON logs.audit_logs(created_at DESC);
+		CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON logs.audit_logs(action);
+		CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON logs.audit_logs(actor_id);
+	`)
+	if err != nil {
+		return fmt.Errorf("create logs.audit_logs: %w", err)
+	}
+
+	// ── Seed default settings ──
 	defaults := map[string]string{
 		"retention_full_default": "7",
 		"retention_incr_default": "30",
@@ -268,7 +390,7 @@ func migrate(db *sql.DB) error {
 		"notify_on_failure":      "true",
 	}
 	for k, v := range defaults {
-		_, _ = db.Exec(`INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, k, v)
+		_, _ = db.Exec(`INSERT INTO jagad.app_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`, k, v)
 	}
 
 	return nil
@@ -279,7 +401,6 @@ func createHypertables(db *sql.DB) error {
 	var extExists bool
 	err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')`).Scan(&extExists)
 	if err != nil {
-		// If we can't check, assume no hypertables needed
 		return nil
 	}
 	if !extExists {
@@ -290,48 +411,19 @@ func createHypertables(db *sql.DB) error {
 		table string
 		col   string
 	}{
-		{"health_checks", "time"},
-		{"db_metrics", "time"},
-		{"performance_metrics", "time"},
-		{"autovacuum_info", "time"},
-		{"lock_info", "time"},
-		{"replication_lag", "time"},
-		{"table_metrics", "time"},
+		{"metrics.health_checks", "time"},
+		{"metrics.db_metrics", "time"},
+		{"metrics.performance_metrics", "time"},
+		{"metrics.autovacuum_info", "time"},
+		{"metrics.lock_info", "time"},
+		{"metrics.replication_lag", "time"},
+		{"metrics.table_metrics", "time"},
 	}
 
 	for _, ht := range hypertables {
-		// First ensure the table exists
-		_, err := db.Exec(fmt.Sprintf(`
-			CREATE TABLE IF NOT EXISTS %s (
-				time              TIMESTAMPTZ NOT NULL,
-				connection_id     TEXT NOT NULL,
-				status            TEXT,
-				response_time_ms  INTEGER,
-				active_connections INTEGER,
-				db_size_bytes     BIGINT,
-				growth_bytes      BIGINT,
-				cache_hit_ratio   REAL,
-				qps               INTEGER,
-				connections_total INTEGER,
-				query_id          TEXT,
-				query_text        TEXT,
-				mean_time_ms      REAL,
-				total_time_ms     REAL,
-				calls             INTEGER,
-				rows_avg          REAL,
-				db_type           TEXT,
-				error_message     TEXT,
-				metadata          JSONB
-			)`, ht.table))
-		if err != nil {
-			return fmt.Errorf("create %s table: %w", ht.table, err)
-		}
-
 		// Convert to hypertable — safe to call even if already hypertable
 		_, err = db.Exec(fmt.Sprintf(`SELECT create_hypertable('%s', '%s', if_not_exists => TRUE)`, ht.table, ht.col))
 		if err != nil {
-			// Hypertable creation might fail if table already has data or other constraints
-			// We ignore the error since it's non-critical for existing deployments
 			continue
 		}
 
@@ -343,4 +435,93 @@ func createHypertables(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+// migrateDataFromPublic migrates data from old public schema tables to new schema
+// if the old public tables exist and the new tables are empty (fresh migration).
+// This ensures backward compatibility for existing deployments.
+func migrateDataFromPublic(db *sql.DB) error {
+	tables := []struct {
+		src string // old public.table
+		dst string // new schema.table
+		cols string
+	}{
+		{"public.connections", "jagad.connections", "id, name, db_type, host, port, username, password, ssl_mode, created_at, updated_at"},
+		{"public.connection_databases", "jagad.connection_databases", "id, connection_id, db_name, is_selected, size_bytes, created_at"},
+		{"public.storage_providers", "jagad.storage_providers", "id, name, provider_type, endpoint, region, bucket, access_key_encrypted, secret_key_encrypted, path_style, is_default, created_at, updated_at"},
+		{"public.schedules", "jagad.schedules", "id, connection_id, database_id, backup_type, cron_expr, storage_provider_id, encryption_enabled, encryption_key_id, verify_enabled, retention_full, retention_incr, notif_target_ids, notify_on_success, notify_on_failure, enabled, created_at"},
+		{"public.backups", "jagad.backups", "id, connection_id, database_id, schedule_id, backup_type, status, storage_path, storage_provider_id, size_bytes, encrypted_size_bytes, encryption_algo, encryption_key_id, checksum, encrypted_checksum, verified_at, verify_status, duration_ms, log_output, notif_target_ids, notify_on_success, notify_on_failure, started_at, completed_at, created_at"},
+		{"public.restores", "jagad.restores", "id, backup_id, target_connection, status, duration_ms, log_output, started_at, completed_at, created_at"},
+		{"public.notifications", "jagad.notifications", "id, name, notif_type, config_json, created_at, updated_at"},
+		{"public.encryption_keys", "jagad.encryption_keys", "id, alias, key_derivation, key_salt, key_check, created_at, rotated_at, is_active"},
+		{"public.app_settings", "jagad.app_settings", "key, value"},
+	}
+
+	for _, t := range tables {
+		err := migrateTableIfNeeded(db, t.src, t.dst, t.cols)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Also migrate hypertables from public → metrics
+	metricsTables := []struct {
+		src  string
+		dst  string
+		cols string
+	}{
+		{"public.health_checks", "metrics.health_checks", "time, connection_id, status, response_time_ms, active_connections, error_message"},
+		{"public.db_metrics", "metrics.db_metrics", "time, connection_id, db_type, db_size_bytes, growth_bytes, cache_hit_ratio, qps, connections_total, max_connections, conn_usage_percent"},
+		{"public.performance_metrics", "metrics.performance_metrics", "time, connection_id, db_type, query_id, query_text, mean_time_ms, total_time_ms, calls, rows_avg"},
+	}
+
+	for _, t := range metricsTables {
+		_ = migrateTableIfNeeded(db, t.src, t.dst, t.cols)
+	}
+
+	return nil
+}
+
+func migrateTableIfNeeded(db *sql.DB, src, dst, cols string) error {
+	// Check if source table exists in public schema
+	var srcExists bool
+	err := db.QueryRow(fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '%s')`, extractTableName(src))).Scan(&srcExists)
+	if err != nil || !srcExists {
+		return nil // source doesn't exist, nothing to migrate
+	}
+
+	// Check if destination already has data
+	var dstCount int
+	err = db.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s`, dst)).Scan(&dstCount)
+	if err != nil {
+		return nil // destination doesn't exist or error
+	}
+	if dstCount > 0 {
+		return nil // already migrated
+	}
+
+	// Check if source has data
+	var srcCount int
+	err = db.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s`, extractTableName(src))).Scan(&srcCount)
+	if err != nil || srcCount == 0 {
+		return nil // nothing to migrate
+	}
+
+	// Migrate: INSERT into new schema from old
+	_, err = db.Exec(fmt.Sprintf(`INSERT INTO %s (%s) SELECT %s FROM %s`, dst, cols, cols, src))
+	if err != nil {
+		return fmt.Errorf("migrate %s → %s: %w", src, dst, err)
+	}
+
+	return nil
+}
+
+// extractTableName strips schema prefix for information_schema lookups.
+func extractTableName(table string) string {
+	for i := len(table) - 1; i >= 0; i-- {
+		if table[i] == '.' {
+			return table[i+1:]
+		}
+	}
+	return table
 }
