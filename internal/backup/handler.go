@@ -156,6 +156,8 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ConnectionID        string   `json:"connection_id"`
 		DatabaseID          string   `json:"database_id"`
+		DatabaseIDs         []string `json:"database_ids,omitempty"`
+		BackupAll           bool     `json:"backup_all"`
 		BackupType          string   `json:"backup_type"`
 		ScheduleID          *string  `json:"schedule_id,omitempty"`
 		StorageProviderID   *string  `json:"storage_provider_id,omitempty"`
@@ -166,6 +168,13 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+	if req.ConnectionID == "" {
+		httputil.WriteError(w, http.StatusBadRequest, "connection_id is required")
+		return
+	}
+	if req.BackupType == "" {
+		req.BackupType = "full"
 	}
 
 	// Default notification settings
@@ -178,12 +187,50 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		notifOnFailure = *req.NotifyOnFailure
 	}
 
-	b, err := h.svc.StartBackup(req.ConnectionID, req.DatabaseID, req.BackupType, req.ScheduleID, req.StorageProviderID, req.NotifTargetIDs, notifOnSuccess, notifOnFailure)
+	// Resolve which databases to backup
+	dbIDs, err := h.svc.ResolveDatabaseIDs(req.ConnectionID, req.BackupAll, req.DatabaseIDs, req.DatabaseID)
 	if err != nil {
 		httputil.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, b)
+
+	if len(dbIDs) == 0 {
+		httputil.WriteError(w, http.StatusBadRequest, "no databases resolved for backup")
+		return
+	}
+
+	// Start backup(s) — one Backup record per database
+	results := make([]*Backup, 0, len(dbIDs))
+	var lastErr error
+	for _, dbID := range dbIDs {
+		b, err := h.svc.StartBackup(req.ConnectionID, dbID, req.BackupType, req.ScheduleID, req.StorageProviderID, req.NotifTargetIDs, notifOnSuccess, notifOnFailure)
+		if err != nil {
+			lastErr = err
+			fmt.Printf("[backup] ERROR starting backup for db=%s: %v\n", dbID, err)
+			continue
+		}
+		results = append(results, b)
+	}
+
+	if len(results) == 0 {
+		errMsg := "all backups failed"
+		if lastErr != nil {
+			errMsg = lastErr.Error()
+		}
+		httputil.WriteError(w, http.StatusInternalServerError, errMsg)
+		return
+	}
+
+	if len(results) == 1 {
+		httputil.WriteJSON(w, http.StatusCreated, results[0])
+	} else {
+		httputil.WriteJSON(w, http.StatusCreated, map[string]interface{}{
+			"backups":  results,
+			"total":    len(dbIDs),
+			"started":  len(results),
+			"failed":   len(dbIDs) - len(results),
+		})
+	}
 }
 
 func (h *Handler) handleGet(w http.ResponseWriter, r *http.Request) {

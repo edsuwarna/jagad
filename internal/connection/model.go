@@ -6,16 +6,20 @@ import "time"
 
 // Connection represents a database server connection (server-level).
 type Connection struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	DBType    string    `json:"db_type"` // postgresql, mysql, mariadb
-	Host      string    `json:"host"`
-	Port      int       `json:"port"`
-	Username  string    `json:"username"`
-	Password  string    `json:"password,omitempty"` // encrypted at rest, omitted in API responses
-	SSLMode   string    `json:"ssl_mode"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             string                 `json:"id"`
+	Name           string                 `json:"name"`
+	DBType         string                 `json:"db_type"` // postgresql, mysql, mariadb
+	Host           string                 `json:"host"`
+	Port           int                    `json:"port"`
+	Username       string                 `json:"username"`
+	Password       string                 `json:"password,omitempty"` // encrypted at rest, omitted in API responses
+	SSLMode        string                 `json:"ssl_mode"`
+	DBVersion      string                 `json:"db_version"`
+	DBCount        int                    `json:"db_count"`
+	TotalSizeBytes int64                  `json:"total_size_bytes"`
+	Databases      []ConnectionDatabase   `json:"databases,omitempty"`
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
 }
 
 // ConnectionDatabase represents a discovered database within a connection.
@@ -37,6 +41,7 @@ type Repository interface {
 	Create(conn *Connection) error
 	Update(conn *Connection) error
 	Delete(id string) error
+	UpdateVersion(id, version string) error
 
 	// Discovered databases
 	ListDatabases(connectionID string) ([]ConnectionDatabase, error)

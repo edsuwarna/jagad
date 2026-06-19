@@ -33,8 +33,8 @@ func (s *Service) Create(sch *Schedule) error {
 	if sch.ConnectionID == "" {
 		return fmt.Errorf("connection_id is required")
 	}
-	if sch.DatabaseID == "" {
-		return fmt.Errorf("database_id is required")
+	if sch.DatabaseID == "" && !sch.BackupAll && len(sch.DatabaseIDs) == 0 {
+		return fmt.Errorf("database_id, database_ids, or backup_all=true is required")
 	}
 	if sch.CronExpr == "" {
 		return fmt.Errorf("cron_expr is required")

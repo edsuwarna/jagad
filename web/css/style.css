@@ -1045,6 +1045,61 @@ tbody tr.status-running td:first-child { border-left: 3px solid var(--blue); }
   align-items: center;
   gap: 6px;
 }
+
+/* Expanded database list */
+.expand-dbs-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.expand-dbs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.expand-dbs-list {
+  font-size: 12px;
+}
+.expand-dbs-headers {
+  display: grid;
+  grid-template-columns: 1fr 100px 60px;
+  gap: 8px;
+  padding: 4px 8px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 4px;
+}
+.expand-db-item {
+  display: grid;
+  grid-template-columns: 1fr 100px 60px;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.expand-db-item:hover {
+  background: var(--bg-hover);
+}
+.expand-db-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+}
+.expand-db-size {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  text-align: right;
+}
+.expand-db-check {
+  text-align: center;
+  font-size: 11px;
+}
+.expand-db-check.db-selected { color: var(--green); }
+.expand-db-check.db-system { color: var(--text-tertiary); }
 .rb-dot { width: 6px; height: 6px; border-radius: 50%; }
 .rb-dot.success { background: var(--green); }
 .rb-dot.fail { background: var(--red); }

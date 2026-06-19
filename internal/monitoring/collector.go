@@ -427,6 +427,11 @@ func (c *Collector) collectMySQLMetrics(ctx context.Context, db *sql.DB, conn *c
 		err = db.QueryRowContext(ctx, q).Scan(&hitRate)
 		if err == nil && hitRate.Valid {
 			m.CacheHitRatio = hitRate.Float64
+			if m.CacheHitRatio > 100 {
+				m.CacheHitRatio = 100
+			} else if m.CacheHitRatio < 0 {
+				m.CacheHitRatio = 0
+			}
 		}
 
 		metrics = append(metrics, m)

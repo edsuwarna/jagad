@@ -105,7 +105,9 @@ func migrate(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS jagad.schedules (
 		id              TEXT PRIMARY KEY,
 		connection_id   TEXT NOT NULL REFERENCES jagad.connections(id),
-		database_id     TEXT NOT NULL REFERENCES jagad.connection_databases(id),
+		database_id     TEXT REFERENCES jagad.connection_databases(id),  -- single DB (legacy)
+		database_ids    TEXT NOT NULL DEFAULT '[]',                     -- JSON array of DB IDs for multi-select
+		backup_all      INTEGER NOT NULL DEFAULT 0,                    -- 1 = backup all discovered databases
 		backup_type     TEXT NOT NULL CHECK(backup_type IN ('full', 'incremental')),
 		cron_expr       TEXT NOT NULL,
 		storage_provider_id TEXT REFERENCES jagad.storage_providers(id),
@@ -195,6 +197,19 @@ func migrate(db *sql.DB) error {
 	_, err = db.Exec(schema)
 	if err != nil {
 		return fmt.Errorf("create jagad tables: %w", err)
+	}
+
+	// ── Migration: add multi-DB support to schedules ──
+	migrations := []string{
+		`ALTER TABLE jagad.schedules ADD COLUMN IF NOT EXISTS database_ids TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE jagad.schedules ADD COLUMN IF NOT EXISTS backup_all INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE jagad.schedules ALTER COLUMN database_id DROP NOT NULL`,
+	}
+	for _, m := range migrations {
+		if _, err := db.Exec(m); err != nil {
+			// Log but don't fail — migration might already be partially applied
+			fmt.Printf("WARN: migration '%s' failed (may already be applied): %v\n", m[:60], err)
+		}
 	}
 
 	// ── Timescale tables → metrics schema ──
@@ -352,6 +367,8 @@ func migrate(db *sql.DB) error {
 	-- Add missing columns (for existing deployments that had partial migration)
 	ALTER TABLE IF EXISTS metrics.db_metrics ADD COLUMN IF NOT EXISTS max_connections INTEGER DEFAULT 0;
 	ALTER TABLE IF EXISTS metrics.db_metrics ADD COLUMN IF NOT EXISTS conn_usage_percent REAL DEFAULT 0;
+
+	ALTER TABLE IF EXISTS jagad.connections ADD COLUMN IF NOT EXISTS db_version TEXT DEFAULT '';
 	`
 
 	_, err = db.Exec(metricsSchema)

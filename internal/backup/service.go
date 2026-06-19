@@ -748,6 +748,33 @@ func (s *Service) failVerification(b *Backup, logOutput string) {
 	}
 }
 
+// ResolveDatabaseIDs returns the list of database IDs to backup.
+// Priority: backupAll (discover all) > databaseIDs (specific selection) > databaseID (legacy single).
+func (s *Service) ResolveDatabaseIDs(connectionID string, backupAll bool, databaseIDs []string, databaseID string) ([]string, error) {
+	if backupAll {
+		// Discover all databases for this connection
+		dbs, err := s.connRepo.ListDatabases(connectionID)
+		if err != nil {
+			return nil, fmt.Errorf("list databases for backup_all: %w", err)
+		}
+		ids := make([]string, len(dbs))
+		for i, db := range dbs {
+			ids[i] = db.ID
+		}
+		return ids, nil
+	}
+
+	if len(databaseIDs) > 0 {
+		return databaseIDs, nil
+	}
+
+	if databaseID != "" {
+		return []string{databaseID}, nil
+	}
+
+	return nil, fmt.Errorf("no database target specified (set backup_all=true, database_ids, or database_id)")
+}
+
 // EnforceRetention deletes backups that exceed the retention limits for a given schedule.
 func (s *Service) EnforceRetention(scheduleID string, retentionFull, retentionIncr int) {
 	// Full backups: keep only the most recent `retentionFull` ones

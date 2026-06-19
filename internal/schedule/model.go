@@ -3,11 +3,13 @@ package schedule
 
 import "time"
 
-// Schedule represents a cron-based backup schedule targeting one database.
+// Schedule represents a cron-based backup schedule targeting one or more databases.
 type Schedule struct {
 	ID                  string    `json:"id"`
 	ConnectionID        string    `json:"connection_id"`
-	DatabaseID          string    `json:"database_id"`
+	DatabaseID          string    `json:"database_id"`                     // single DB (legacy, kept for backward compat)
+	DatabaseIDs         []string  `json:"database_ids,omitempty"`          // specific DB selection (alternative to BackupAll)
+	BackupAll           bool      `json:"backup_all"`                     // true = backup all discovered databases
 	BackupType          string    `json:"backup_type"` // full, incremental
 	CronExpr            string    `json:"cron_expr"`
 	StorageProviderID   string    `json:"storage_provider_id"`

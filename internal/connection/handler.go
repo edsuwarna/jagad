@@ -32,6 +32,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/connections/{id}/databases", h.handleListDatabases)
 	mux.HandleFunc("POST /api/connections/{id}/discover", h.handleDiscover)
 	mux.HandleFunc("PUT /api/connections/databases/{id}", h.handleUpdateDatabase)
+	mux.HandleFunc("POST /api/connections/{id}/refresh-version", h.handleRefreshVersion)
 }
 
 func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
@@ -202,11 +203,11 @@ func openSourceDB(conn *Connection) (*sql.DB, error) {
 		return sql.Open("pgx", dsn)
 	case "mysql":
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?tls=%s&timeout=5s&charset=utf8mb4",
-			conn.Username, conn.Password, conn.Host, conn.Port, conn.SSLMode)
+			conn.Username, conn.Password, conn.Host, conn.Port, mapMySQLTLS(conn.SSLMode))
 		return sql.Open("mysql", dsn)
 	case "mariadb":
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/?tls=%s&timeout=5s&charset=utf8mb4&multiStatements=true",
-			conn.Username, conn.Password, conn.Host, conn.Port, conn.SSLMode)
+			conn.Username, conn.Password, conn.Host, conn.Port, mapMySQLTLS(conn.SSLMode))
 		return sql.Open("mysql", dsn)
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", conn.DBType)
@@ -269,4 +270,35 @@ func (h *Handler) handleUpdateDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleRefreshVersion re-fetches and saves the database version for an existing connection.
+func (h *Handler) handleRefreshVersion(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	conn, err := h.svc.Get(id)
+	if err != nil || conn == nil {
+		httputil.WriteError(w, http.StatusNotFound, "connection not found")
+		return
+	}
+
+	// Get full conn with password for connecting
+	version, err := FetchVersion(conn)
+	if err != nil {
+		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	if err := h.svc.UpdateVersion(id, version); err != nil {
+		httputil.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"version": version,
+	})
 }

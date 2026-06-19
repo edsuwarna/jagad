@@ -32,6 +32,7 @@ function navigate(page) {
   document.querySelectorAll('.sidebar-link').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
+  updateTopBar(page);
   // Close mobile sidebar on nav
   closeMobileSidebar();
 }
@@ -39,6 +40,7 @@ function navigate(page) {
 window.addEventListener('popstate', () => {
   const page = location.hash.slice(1) || 'dashboard';
   renderPage(page);
+  updateTopBar(page);
 });
 
 function toggleTheme() {
@@ -151,6 +153,45 @@ async function login() {
   }
 }
 
+// ── Top Bar Actions per Page ──
+function topBarActions(page) {
+  const actions = {
+    dashboard: `
+      <button class="btn btn-ghost btn-sm" onclick="navigate('backups')">
+        <i data-lucide="clock" size="14"></i>
+        Last 7 days
+      </button>
+      <button class="btn btn-primary" onclick="showRunBackupModal()">
+        <i data-lucide="plus" size="14"></i>
+        New Backup
+      </button>`,
+    connections: `
+      <button class="btn btn-primary" onclick="showAddConnectionModal()">
+        <i data-lucide="plus" size="14"></i>
+        Add Connection
+      </button>`,
+    backups: `
+      <button class="btn btn-primary" onclick="showRunBackupModal()">
+        <i data-lucide="plus" size="14"></i>
+        New Backup
+      </button>`,
+    schedules: `
+      <button class="btn btn-primary" onclick="showAddScheduleModal()">
+        <i data-lucide="plus" size="14"></i>
+        New Schedule
+      </button>`,
+  };
+  return actions[page] || '';
+}
+
+function updateTopBar(page) {
+  const rightBar = document.querySelector('.top-bar-right');
+  if (!rightBar) return;
+  const logoutBtn = rightBar.querySelector('button:last-child');
+  rightBar.innerHTML = topBarActions(page) + (logoutBtn ? logoutBtn.outerHTML : '');
+  lucide.createIcons();
+}
+
 function renderApp() {
   const page = location.hash.slice(1) || 'dashboard';
   const theme = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -182,10 +223,12 @@ function renderApp() {
           <a class="sidebar-link ${page === 'backups' ? 'active' : ''}" data-page="backups" onclick="navigate('backups')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><circle cx="12" cy="12" r="3"/></svg>
             Backups
+            <span class="badge-count" id="sidebar-backup-count">0</span>
           </a>
           <a class="sidebar-link ${page === 'schedules' ? 'active' : ''}" data-page="schedules" onclick="navigate('schedules')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
             Schedules
+            <span class="badge-count" id="sidebar-schedule-count">0</span>
           </a>
 
           <div class="sidebar-section-label">Management</div>
@@ -241,14 +284,7 @@ function renderApp() {
             <h1 id="page-title-breadcrumb" style="font-size:18px;font-weight:600;letter-spacing:-0.3px;">Dashboard</h1>
           </div>
           <div class="top-bar-right">
-            <button class="btn btn-ghost btn-sm" onclick="navigate('backups')">
-              <i data-lucide="clock" size="14"></i>
-              Last 7 days
-            </button>
-            <button class="btn btn-primary" onclick="showRunBackupModal()">
-              <i data-lucide="plus" size="14"></i>
-              New Backup
-            </button>
+            ${topBarActions(page)}
             <button class="btn btn-ghost btn-icon" onclick="logout()" title="Sign out">
               <i data-lucide="log-out" size="15"></i>
             </button>
@@ -265,12 +301,26 @@ function renderApp() {
 
   lucide.createIcons();
   renderPage(page);
+
+  // Global sidebar counts: fetch all & update badges on every page load
+  Promise.all([
+    API.get('/api/connections').catch(() => []),
+    API.get('/api/backups').catch(() => []),
+    API.get('/api/schedules').catch(() => []),
+  ]).then(([conns, backups, scheds]) => {
+    state.connections = conns || [];
+    state.backups = backups || [];
+    state.schedules = scheds || [];
+    updateSidebarCounts();
+  });
 }
 
 // ── Global Modal ──
 function showModal(title, bodyHtml, onConfirm, confirmText) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
+  const hasConfirm = typeof onConfirm === 'function';
+  const btnText = confirmText || (hasConfirm ? 'Save' : 'Close');
   overlay.innerHTML = `
     <div class="modal">
       <div class="modal-header">
@@ -279,19 +329,36 @@ function showModal(title, bodyHtml, onConfirm, confirmText) {
       </div>
       <div class="modal-body">${bodyHtml}</div>
       <div class="modal-footer" id="modal-footer">
-        <button class="btn" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
-        <button class="btn btn-primary" id="modal-confirm">${confirmText || (onConfirm ? 'Save' : 'Close')}</button>
+        ${hasConfirm ? '<button class="btn" onclick="this.closest(\'.modal-overlay\').remove()">Cancel</button>' : ''}
+        <button class="btn btn-primary" id="modal-confirm">${btnText}</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
-  if (onConfirm) {
-    document.getElementById('modal-confirm').onclick = () => {
+  const confirmBtn = document.getElementById('modal-confirm');
+  confirmBtn.onclick = () => {
+    if (hasConfirm) {
       const result = onConfirm();
       if (result !== false) overlay.remove();
-    };
-  }
+    } else {
+      overlay.remove();
+    }
+  };
   return overlay;
+}
+
+function updateSidebarCounts() {
+  const connCount = (state.connections || []).length;
+  const connBadge = document.getElementById('sidebar-conn-count');
+  if (connBadge) connBadge.textContent = connCount || '0';
+
+  const backupCount = (state.backups || []).length;
+  const backupBadge = document.getElementById('sidebar-backup-count');
+  if (backupBadge) backupBadge.textContent = backupCount || '0';
+
+  const schedCount = (state.schedules || []).length;
+  const schedBadge = document.getElementById('sidebar-schedule-count');
+  if (schedBadge) schedBadge.textContent = schedCount || '0';
 }
 
 function renderPage(page) {
@@ -433,7 +500,7 @@ async function renderDashboard(el) {
     <div class="card">
       <div class="card-header">
         <span class="card-title">Recent Activity</span>
-        <button class="card-action" onclick="navigate('backups')">View all →</button>
+        <button class="card-action" onclick="navigate('activity')">View all →</button>
       </div>
       <div class="card-body">
         <div class="activity-feed" id="activity-feed">
@@ -458,6 +525,8 @@ async function renderDashboard(el) {
 
     state.connections = conns;
     state.storageProviders = storageProvs;
+
+    updateSidebarCounts();
 
     // ── KPI Row ──
     const connCount = conns.length;
@@ -489,10 +558,6 @@ async function renderDashboard(el) {
     const monServers = conns.filter(c => c.status === 'connected').length;
     document.getElementById('kpi-servers').textContent = monServers;
     document.getElementById('kpi-servers-change').textContent = '↑ ' + connCount + ' total connections';
-
-    // Sidebar counts
-    const connBadge = document.getElementById('sidebar-conn-count');
-    if (connBadge) connBadge.textContent = connCount;
 
     // ── Mini Bar Chart (30 bars — mockup style) ──
     const chartEl = document.getElementById('chart-container');
@@ -623,22 +688,21 @@ async function renderConnections(el) {
 
       const dbs = (c.databases && c.databases.length) || c.db_count || '—';
 
-      // Build expand detail
-      const detailRows = [];
-      if (c.databases && c.databases.length > 0) {
-        const recentBackups = c.databases.slice(0, 3).map(db => `
-          <div class="recent-backup-item">
-            <div class="rb-status"><span class="rb-dot success"></span> ${escHtml(db.db_name || db.name)}${db.size ? ` (${db.size})` : ''}</div>
-            <span class="cell-text">—</span>
-          </div>
-        `).join('');
-        if (recentBackups) {
-          detailRows.push(`<div class="recent-backups-mini">
-            <div class="recent-backups-mini-title">Databases (${c.databases.length})</div>
-            ${recentBackups}
-          </div>`);
-        }
-      }
+      // Enhanced expand detail — databases list with sizes
+      const dbList = (c.databases && c.databases.length > 0)
+        ? c.databases.map(db => {
+            const sizeStr = db.size_bytes ? formatBytes(db.size_bytes) : '—';
+            const checkIcon = db.is_selected ? '✓' : '✗';
+            const checkClass = db.is_selected ? 'db-selected' : 'db-system';
+            return `<div class="expand-db-item">
+              <span class="expand-db-name">${escHtml(db.db_name || db.name)}</span>
+              <span class="expand-db-size">${sizeStr}</span>
+              <span class="expand-db-check ${checkClass}">${checkIcon}</span>
+            </div>`;
+          }).join('')
+        : '<div style="color:var(--text-muted);font-size:12px;padding:12px 0;">No databases discovered. Run Discover from the menu.</div>';
+
+      const totalSize = c.total_size_bytes ? formatBytes(c.total_size_bytes) : '—';
 
       return `
       <div class="table-row" onclick="toggleExpandConn(this)">
@@ -674,11 +738,28 @@ async function renderConnections(el) {
             <div class="detail-value">${c.db_version || '—'}</div>
           </div>
           <div class="detail-group">
-            <div class="detail-label">Total Databases</div>
+            <div class="detail-label">Databases</div>
             <div class="detail-value">${dbs}</div>
           </div>
+          <div class="detail-group">
+            <div class="detail-label">Total Size</div>
+            <div class="detail-value">${totalSize}</div>
+          </div>
         </div>
-        ${detailRows.join('')}
+        <div class="expand-dbs-section">
+          <div class="expand-dbs-header">
+            <span style="font-weight:500;font-size:12px;">Database List</span>
+            <span style="font-size:11px;color:var(--text-muted);">${(c.databases && c.databases.length) || 0} databases</span>
+          </div>
+          <div class="expand-dbs-list">
+            <div class="expand-dbs-headers">
+              <span class="expand-db-name">Database</span>
+              <span class="expand-db-size">Size</span>
+              <span class="expand-db-check">Selected</span>
+            </div>
+            ${dbList}
+          </div>
+        </div>
       </div>`;
     }).join('');
   }
@@ -746,6 +827,17 @@ async function renderConnections(el) {
       API.get('/api/monitoring/health?limit=200').catch(() => []),
     ]);
     state.connections = conns;
+    updateSidebarCounts();
+
+    // Load databases for all connections
+    const dbResults = await Promise.all(
+      (conns || []).map(c =>
+        API.get(`/api/connections/${c.id}/databases`).catch(() => [])
+      )
+    );
+    (conns || []).forEach((c, i) => {
+      c.databases = dbResults[i] || [];
+    });
 
     const healthByConn = {};
     (healthData || []).forEach(h => {
@@ -770,6 +862,14 @@ window.showConnMenu = function(event, connId) {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       Discover Databases
     </div>
+    <div style="padding:8px 12px;font-size:12px;cursor:pointer;border-radius:6px;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''" onclick="this.closest('div').remove();editConn('${connId}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Edit Connection
+    </div>
+    <div style="padding:8px 12px;font-size:12px;cursor:pointer;border-radius:6px;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''" onclick="this.closest('div').remove();refreshConnVersion('${connId}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Refresh Version
+    </div>
     <div style="padding:8px 12px;font-size:12px;cursor:pointer;border-radius:6px;display:flex;align-items:center;gap:8px;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''" onclick="this.closest('div').remove();showBackupConn('${connId}')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polygon points="5 3 19 12 5 21 5 3"/></svg>
       Run Backup
@@ -785,37 +885,57 @@ window.showConnMenu = function(event, connId) {
   document.addEventListener('click', () => { menu.remove(); }, { once: true });
 };
 
-function showAddConnectionModal() {
-  showModal('Add Connection', `
+function showAddConnectionModal(existingConn) {
+  const isEdit = !!existingConn;
+  const title = isEdit ? 'Edit Connection' : 'Add Connection';
+  const confirmText = isEdit ? 'Save Changes' : 'Save';
+  const name = isEdit ? escHtml(existingConn.name) : '';
+  const host = isEdit ? escHtml(existingConn.host) : '';
+  const port = isEdit ? existingConn.port : 5432;
+  const dbType = isEdit ? existingConn.db_type : 'postgresql';
+  const user = isEdit ? escHtml(existingConn.username) : '';
+  const sslMode = isEdit ? escHtml(existingConn.ssl_mode || 'prefer') : 'prefer';
+
+  showModal(title, `
     <div class="form-group">
       <label class="form-label">Name</label>
-      <input class="form-input" id="modal-conn-name" placeholder="Production DB">
+      <input class="form-input" id="modal-conn-name" placeholder="Production DB" value="${name}">
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label">Type</label>
         <select class="form-select" id="modal-conn-type" onchange="updateConnPort()">
-          <option value="postgresql">PostgreSQL</option>
-          <option value="mysql">MySQL</option>
-          <option value="mariadb">MariaDB</option>
+          <option value="postgresql" ${dbType === 'postgresql' ? 'selected' : ''}>PostgreSQL</option>
+          <option value="mysql" ${dbType === 'mysql' ? 'selected' : ''}>MySQL</option>
+          <option value="mariadb" ${dbType === 'mariadb' ? 'selected' : ''}>MariaDB</option>
         </select>
       </div>
       <div class="form-group" style="flex:1">
         <label class="form-label">Port</label>
-        <input class="form-input" id="modal-conn-port" value="5432" placeholder="auto">
+        <input class="form-input" id="modal-conn-port" value="${port}" placeholder="auto">
       </div>
     </div>
     <div class="form-group">
       <label class="form-label">Host</label>
-      <input class="form-input" id="modal-conn-host" placeholder="localhost">
+      <input class="form-input" id="modal-conn-host" placeholder="localhost" value="${host}">
     </div>
     <div class="form-group">
       <label class="form-label">Username</label>
-      <input class="form-input" id="modal-conn-user" placeholder="postgres">
+      <input class="form-input" id="modal-conn-user" placeholder="postgres" value="${user}">
     </div>
     <div class="form-group">
-      <label class="form-label">Password</label>
-      <input class="form-input" type="password" id="modal-conn-pass" placeholder="••••••">
+      <label class="form-label">Password${isEdit ? ' (leave blank to keep current)' : ''}</label>
+      <input class="form-input" type="password" id="modal-conn-pass" placeholder="${isEdit ? 'unchanged' : '••••••'}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">SSL Mode</label>
+      <select class="form-select" id="modal-conn-sslmode">
+        <option value="prefer" ${sslMode === 'prefer' ? 'selected' : ''}>Prefer</option>
+        <option value="require" ${sslMode === 'require' ? 'selected' : ''}>Require</option>
+        <option value="disable" ${sslMode === 'disable' ? 'selected' : ''}>Disable</option>
+        <option value="verify-ca" ${sslMode === 'verify-ca' ? 'selected' : ''}>Verify CA</option>
+        <option value="verify-full" ${sslMode === 'verify-full' ? 'selected' : ''}>Verify Full</option>
+      </select>
     </div>
     <div style="display:flex;gap:var(--space-md);margin-bottom:var(--space-lg);">
       <button class="btn btn-primary test-conn-btn" onclick="testConnectionFromModal(event)">
@@ -824,19 +944,55 @@ function showAddConnectionModal() {
       <div class="test-conn-result" id="test-conn-result"></div>
     </div>
   `, async () => {
-    const name = document.getElementById('modal-conn-name').value;
-    const host = document.getElementById('modal-conn-host').value;
-    const port = parseInt(document.getElementById('modal-conn-port').value) || 5432;
-    const dbType = document.getElementById('modal-conn-type').value;
-    const user = document.getElementById('modal-conn-user').value;
-    const pass = document.getElementById('modal-conn-pass').value;
-    if (!name || !host || !user) { alert('Name, Host, and Username are required'); return false; }
+    const nameV = document.getElementById('modal-conn-name').value;
+    const hostV = document.getElementById('modal-conn-host').value;
+    const portV = parseInt(document.getElementById('modal-conn-port').value) || 5432;
+    const dbTypeV = document.getElementById('modal-conn-type').value;
+    const userV = document.getElementById('modal-conn-user').value;
+    const passV = document.getElementById('modal-conn-pass').value;
+    const sslV = document.getElementById('modal-conn-sslmode').value;
+    if (!nameV || !hostV || !userV) { showModalAlert('Name, Host, and Username are required'); return false; }
     try {
-      await API.post('/api/connections', { name, host, port, db_type: dbType, username: user, password: pass });
+      const body = { name: nameV, host: hostV, port: portV, db_type: dbTypeV, username: userV, ssl_mode: sslV };
+      if (passV) body.password = passV;
+      if (isEdit) {
+        await API.put(`/api/connections/${existingConn.id}`, body);
+      } else {
+        await API.post('/api/connections', body);
+      }
       renderConnections(document.getElementById('page-content'));
-    } catch (err) { alert('Error: ' + err.message); return false; }
-  });
+    } catch (err) { showModalAlert('Error: ' + err.message); return false; }
+  }, confirmText);
   lucide.createIcons();
+}
+
+// refreshConnVersion — re-fetches database version from the server
+async function refreshConnVersion(connId) {
+  try {
+    const res = await API.post('/api/connections/' + connId + '/refresh-version');
+    if (res.success) {
+      showModalAlert('Version refreshed: ' + res.version, 'Success');
+      // Update local state
+      const conn = state.connections.find(c => c.id === connId);
+      if (conn) conn.db_version = res.version;
+      renderConnections(document.getElementById('page-content'));
+    } else {
+      showModalAlert('Failed: ' + (res.error || 'unknown error'), 'Error');
+    }
+  } catch (err) {
+    showModalAlert('Error: ' + err.message, 'Error');
+  }
+}
+
+// editConn — opens the add/edit modal pre-filled for an existing connection
+function editConn(connId) {
+  const conn = state.connections.find(c => c.id === connId);
+  if (conn) showAddConnectionModal(conn);
+}
+
+// showModalAlert — simple info/error modal replacing alert()
+function showModalAlert(msg, title) {
+  showModal(title || 'Notice', `<p style="font-size:14px;color:var(--text-primary);">${msg}</p>`);
 }
 
 async function testConnectionFromModal(event) {
@@ -884,10 +1040,6 @@ async function showBackupConn(connId) {
     if (conn && conn.databases) dbs = conn.databases;
   } catch(e) {}
 
-  const dbOptions = dbs.length > 0
-    ? dbs.map(d => `<option value="${d.id}">${escHtml(d.db_name)}</option>`).join('')
-    : '<option value="">Auto-discover</option>';
-
   let storageOptions = '<option value="">Use default</option>';
   try {
     const provs = await API.get('/api/storage-providers');
@@ -902,8 +1054,20 @@ async function showBackupConn(connId) {
       <input class="form-input" id="modal-backup-conn" value="${connId}" readonly>
     </div>
     <div class="form-group">
-      <label class="form-label">Database</label>
-      <select class="form-select" id="modal-backup-db">${dbOptions}</select>
+      <label class="form-label">Databases</label>
+      <div style="margin-bottom:8px;">
+        <label class="radio-label" style="margin-right:16px;cursor:pointer;">
+          <input type="radio" name="bk-conn-db-mode" value="all" checked onchange="document.getElementById('bk-conn-db-checklist').style.display='none'">
+          <span style="font-size:13px;">All Databases</span>
+        </label>
+        <label class="radio-label" style="cursor:pointer;">
+          <input type="radio" name="bk-conn-db-mode" value="select" onchange="loadDbChecklist('${connId}', 'bk-conn-db-checklist');document.getElementById('bk-conn-db-checklist').style.display='block'">
+          <span style="font-size:13px;">Select Databases</span>
+        </label>
+      </div>
+      <div id="bk-conn-db-checklist" style="display:none;max-height:180px;overflow-y:auto;border:1px solid var(--border-default);border-radius:6px;padding:8px 12px;background:var(--bg-secondary);">
+        <div style="color:var(--text-muted);font-size:12px;">Loading databases...</div>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
@@ -919,34 +1083,57 @@ async function showBackupConn(connId) {
       </div>
     </div>
   `, async () => {
-    const dbId = document.getElementById('modal-backup-db').value;
     const type = document.getElementById('modal-backup-type').value;
     const storageId = document.getElementById('modal-backup-storage').value;
+
+    // Get database selection
+    const allRadio = document.querySelector('input[name="bk-conn-db-mode"][value="all"]');
+    const selRadio = document.querySelector('input[name="bk-conn-db-mode"][value="select"]');
+    let backupAll = allRadio && allRadio.checked;
+    let databaseIds = [];
+    if (selRadio && selRadio.checked) {
+      document.querySelectorAll('#bk-conn-db-checklist .db-checklist-chk:checked').forEach(cb => databaseIds.push(cb.value));
+    }
+    if (!backupAll && databaseIds.length === 0) {
+      alert('Please select at least one database or choose All Databases');
+      return false;
+    }
+
     try {
       await API.post('/api/backups', {
-        connection_id: connId, database_id: dbId, backup_type: type,
+        connection_id: connId,
+        backup_all: backupAll,
+        database_ids: databaseIds.length > 0 ? databaseIds : undefined,
+        backup_type: type,
         storage_provider_id: storageId || undefined
       });
       alert('Backup started!');
       navigate('backups');
     } catch (err) { alert('Error: ' + err.message); return false; }
   });
+
+  // Pre-load database checklist
+  loadDbChecklist(connId, 'bk-conn-db-checklist');
 }
 
 async function discoverConn(id) {
   try {
     await API.post(`/api/connections/${id}/discover`);
-    alert('Discovery complete!');
+    showModalAlert('✅ Discovery complete!', 'Success');
     renderConnections(document.getElementById('page-content'));
-  } catch (err) { alert('Error: ' + err.message); }
+  } catch (err) { showModalAlert('❌ Error: ' + err.message, 'Error'); }
 }
 
 async function deleteConn(id) {
-  if (!confirm('Delete this connection and all associated backups?')) return;
-  try {
-    await API.del(`/api/connections/${id}`);
-    renderConnections(document.getElementById('page-content'));
-  } catch (err) { alert('Error: ' + err.message); }
+  const overlay = showModal('Delete Connection', `<p style="font-size:14px;color:var(--text-primary);">Delete this connection and all associated backups? This cannot be undone.</p>
+    <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Connection: <strong>${escHtml(state.connections.find(c => c.id === id)?.name || id)}</strong></p>`, async () => {
+    try {
+      await API.del(`/api/connections/${id}`);
+      renderConnections(document.getElementById('page-content'));
+    } catch (err) { showModalAlert('Error: ' + err.message); return false; }
+  }, 'Delete');
+  const confirmBtn = document.getElementById('modal-confirm');
+  if (confirmBtn) confirmBtn.style.background = 'var(--red)';
 }
 
 function updateConnPort() {
@@ -975,6 +1162,78 @@ function updateStoragePlaceholders() {
   if (bk) { bk.placeholder = h.bucket; bk.value = ''; }
   if (rg) { rg.placeholder = h.region; rg.value = ''; }
   if (ps) ps.value = h.pathStyle;
+}
+
+// ══════════════════════════════════════
+// DATABASE SELECTOR HELPERS (multi-DB support)
+// ══════════════════════════════════════
+
+// Fetches discovered databases for a connection and renders checkboxes into the given container.
+// Selected IDs are pre-checked if provided.
+window.loadDbChecklist = async function(connId, containerId, selectedIds) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">Loading databases...</div>';
+  if (!connId) { container.innerHTML = ''; return; }
+  try {
+    const dbs = await API.get(`/api/connections/${connId}/databases`);
+    if (!dbs || dbs.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0;">No databases discovered. Run Discover from the Connection page first.</div>';
+      return;
+    }
+    const sel = new Set(selectedIds || []);
+    container.innerHTML = dbs.map(db => `
+      <label class="checkbox-label db-check-item" style="padding:4px 0;font-size:13px;">
+        <input type="checkbox" class="db-checklist-chk" value="${escHtml(db.id)}" ${sel.has(db.id) ? 'checked' : ''}>
+        ${escHtml(db.db_name)}
+        ${db.size_bytes ? `<span style="color:var(--text-muted);font-size:11px;margin-left:6px;">${formatBytes(db.size_bytes)}</span>` : ''}
+      </label>
+    `).join('');
+  } catch (err) {
+    container.innerHTML = `<div style="color:var(--error);font-size:12px;">Error: ${escHtml(err.message)}</div>`;
+  }
+};
+
+// Returns the currently selected database mode and IDs from the selector UI
+window.getDbSelection = function(modeRadioName, checklistContainerId) {
+  const allRadio = document.querySelector(`input[name="${modeRadioName}"][value="all"]`);
+  const selRadio = document.querySelector(`input[name="${modeRadioName}"][value="select"]`);
+  if (allRadio && allRadio.checked) {
+    return { backupAll: true, databaseIds: [] };
+  }
+  if (selRadio && selRadio.checked) {
+    const ids = [];
+    document.querySelectorAll(`#${checklistContainerId} .db-checklist-chk:checked`).forEach(cb => ids.push(cb.value));
+    return { backupAll: false, databaseIds: ids };
+  }
+  return { backupAll: false, databaseIds: [] };
+};
+
+// Updates the database checklist visibility based on radio selection
+window.toggleDbChecklist = function(checklistContainerId) {
+  const container = document.getElementById(checklistContainerId);
+  if (!container) return;
+  const selRadio = document.querySelector('input[name="db-mode"][value="select"]');
+  container.style.display = (selRadio && selRadio.checked) ? 'block' : 'none';
+};
+
+// HTML snippet for the database mode radio group + checklist container
+function dbSelectorHTML() {
+  return `
+    <div style="margin-bottom:8px;">
+      <label class="radio-label" style="margin-right:16px;cursor:pointer;">
+        <input type="radio" name="db-mode" value="all" checked onchange="toggleDbChecklist('db-checklist')">
+        <span style="font-size:13px;">All Databases</span>
+      </label>
+      <label class="radio-label" style="cursor:pointer;">
+        <input type="radio" name="db-mode" value="select" onchange="toggleDbChecklist('db-checklist')">
+        <span style="font-size:13px;">Select Databases</span>
+      </label>
+    </div>
+    <div id="db-checklist" style="display:none;max-height:200px;overflow-y:auto;border:1px solid var(--border-default);border-radius:6px;padding:8px 12px;background:var(--bg-secondary);">
+      <div style="color:var(--text-muted);font-size:12px;">Select a connection first</div>
+    </div>
+  `;
 }
 
 // ══════════════════════════════════════
@@ -1265,6 +1524,7 @@ async function renderBackups(el) {
     `).join('');
 
     renderBackupTable();
+    updateSidebarCounts();
   } catch (err) {
     document.getElementById('backup-table-body').innerHTML = `<div style="color:var(--error);padding:20px;font-size:13px;">Error: ${escHtml(err.message)}</div>`;
   }
@@ -1313,11 +1573,23 @@ async function showRunBackupModal() {
   showModal('Run Backup', `
     <div class="form-group">
       <label class="form-label">Connection</label>
-      <select class="form-select" id="modal-run-conn">${connOptions}</select>
+      <select class="form-select" id="modal-run-conn" onchange="loadDbChecklist(this.value, 'run-db-checklist')">${connOptions}</select>
     </div>
     <div class="form-group">
-      <label class="form-label">Database ID (optional)</label>
-      <input class="form-input" id="modal-run-db" placeholder="auto">
+      <label class="form-label">Databases</label>
+      <div style="margin-bottom:8px;">
+        <label class="radio-label" style="margin-right:16px;cursor:pointer;">
+          <input type="radio" name="run-db-mode" value="all" checked onchange="document.getElementById('run-db-checklist').style.display='none'">
+          <span style="font-size:13px;">All Databases</span>
+        </label>
+        <label class="radio-label" style="cursor:pointer;">
+          <input type="radio" name="run-db-mode" value="select" onchange="document.getElementById('run-db-checklist').style.display='block'">
+          <span style="font-size:13px;">Select Databases</span>
+        </label>
+      </div>
+      <div id="run-db-checklist" style="display:none;max-height:180px;overflow-y:auto;border:1px solid var(--border-default);border-radius:6px;padding:8px 12px;background:var(--bg-secondary);">
+        <div style="color:var(--text-muted);font-size:12px;">Select a connection first</div>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
@@ -1347,7 +1619,20 @@ async function showRunBackupModal() {
   `, async () => {
     const connId = document.getElementById('modal-run-conn').value;
     if (!connId) { alert('Please select a connection'); return false; }
-    const dbId = document.getElementById('modal-run-db').value;
+
+    // Get database selection
+    const allRadio = document.querySelector('input[name="run-db-mode"][value="all"]');
+    const selRadio = document.querySelector('input[name="run-db-mode"][value="select"]');
+    let backupAll = allRadio && allRadio.checked;
+    let databaseIds = [];
+    if (selRadio && selRadio.checked) {
+      document.querySelectorAll('#run-db-checklist .db-checklist-chk:checked').forEach(cb => databaseIds.push(cb.value));
+    }
+    if (!backupAll && databaseIds.length === 0) {
+      alert('Please select at least one database or choose All Databases');
+      return false;
+    }
+
     const type = document.getElementById('modal-run-type').value;
     const storageId = document.getElementById('modal-run-storage').value;
     
@@ -1359,7 +1644,10 @@ async function showRunBackupModal() {
 
     try {
       await API.post('/api/backups', {
-        connection_id: connId, database_id: dbId, backup_type: type,
+        connection_id: connId,
+        backup_all: backupAll,
+        database_ids: databaseIds.length > 0 ? databaseIds : undefined,
+        backup_type: type,
         storage_provider_id: storageId || undefined,
         notif_target_ids: notifTargetIds,
         notify_on_success: notifOnSuccess,
@@ -1640,6 +1928,8 @@ async function renderSchedules(el) {
         </div>`;
       }).join('');
     }
+    state.schedules = scheds;
+    updateSidebarCounts();
   } catch (err) {
     document.getElementById('schedules-list').innerHTML = `<div style="grid-column:1/-1;padding:20px;color:var(--error);font-size:13px;">Error: ${escHtml(err.message)}</div>`;
   }
@@ -1689,11 +1979,23 @@ async function showAddScheduleModal() {
   showModal('Add Schedule', `
     <div class="form-group">
       <label class="form-label">Connection</label>
-      <select class="form-select" id="modal-sched-conn">${connOptions}</select>
+      <select class="form-select" id="modal-sched-conn" onchange="loadDbChecklist(this.value, 'sched-db-checklist')">${connOptions}</select>
     </div>
     <div class="form-group">
-      <label class="form-label">Database ID</label>
-      <input class="form-input" id="modal-sched-db" placeholder="Database ID from discovery">
+      <label class="form-label">Databases</label>
+      <div style="margin-bottom:8px;">
+        <label class="radio-label" style="margin-right:16px;cursor:pointer;">
+          <input type="radio" name="sched-db-mode" value="all" checked onchange="document.getElementById('sched-db-checklist').style.display='none'">
+          <span style="font-size:13px;">All Databases</span>
+        </label>
+        <label class="radio-label" style="cursor:pointer;">
+          <input type="radio" name="sched-db-mode" value="select" onchange="document.getElementById('sched-db-checklist').style.display='block'">
+          <span style="font-size:13px;">Select Databases</span>
+        </label>
+      </div>
+      <div id="sched-db-checklist" style="display:none;max-height:180px;overflow-y:auto;border:1px solid var(--border-default);border-radius:6px;padding:8px 12px;background:var(--bg-secondary);">
+        <div style="color:var(--text-muted);font-size:12px;">Select a connection first</div>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
@@ -1740,13 +2042,26 @@ async function showAddScheduleModal() {
     </div>
   `, async () => {
     const connId = document.getElementById('modal-sched-conn').value;
-    const dbId = document.getElementById('modal-sched-db').value;
+    if (!connId) { alert('Please select a connection'); return false; }
+
+    // Get database selection
+    const allRadio = document.querySelector('input[name="sched-db-mode"][value="all"]');
+    const selRadio = document.querySelector('input[name="sched-db-mode"][value="select"]');
+    let backupAll = allRadio && allRadio.checked;
+    let databaseIds = [];
+    if (selRadio && selRadio.checked) {
+      document.querySelectorAll('#sched-db-checklist .db-checklist-chk:checked').forEach(cb => databaseIds.push(cb.value));
+    }
+    if (!backupAll && databaseIds.length === 0) {
+      alert('Please select at least one database or choose All Databases');
+      return false;
+    }
+
     const type = document.getElementById('modal-sched-type').value;
     const cron = document.getElementById('modal-sched-cron').value;
     const storageId = document.getElementById('modal-sched-storage').value;
     const retFull = parseInt(document.getElementById('modal-sched-ret-full').value) || 7;
     const retIncr = parseInt(document.getElementById('modal-sched-ret-incr').value) || 30;
-    if (!connId || !dbId) { alert('Connection and Database are required'); return false; }
     if (!storageId) { alert('Storage Provider is required'); return false; }
 
     // Collect selected notification targets
@@ -1757,7 +2072,9 @@ async function showAddScheduleModal() {
 
     try {
       await API.post('/api/schedules', {
-        connection_id: connId, database_id: dbId,
+        connection_id: connId,
+        backup_all: backupAll,
+        database_ids: databaseIds.length > 0 ? databaseIds : undefined,
         backup_type: type, cron_expr: cron,
         storage_provider_id: storageId,
         retention_full: retFull, retention_incr: retIncr,
@@ -1768,6 +2085,166 @@ async function showAddScheduleModal() {
       navigate('schedules');
     } catch (err) { alert('Error: ' + err.message); return false; }
   });
+}
+
+// Edit Schedule modal
+async function showEditScheduleModal(id) {
+  // Load existing schedule
+  let sched;
+  try {
+    sched = await API.get(`/api/schedules/${id}`);
+  } catch (err) { alert('Error loading schedule: ' + err.message); return; }
+  if (!sched) { alert('Schedule not found'); return; }
+
+  const connOptions = state.connections.map(c =>
+    `<option value="${c.id}" ${c.id === sched.connection_id ? 'selected' : ''}>${escHtml(c.name)} (${c.db_type})</option>`
+  ).join('');
+
+  let storageOptions = '<option value="">Select storage provider...</option>';
+  if (state.storageProviders.length > 0) {
+    storageOptions = state.storageProviders.map(p =>
+      `<option value="${p.id}" ${p.id === sched.storage_provider_id ? 'selected' : ''}>${escHtml(p.name)} (${p.provider_type})${p.is_default ? ' ★ Default' : ''}</option>`
+    ).join('');
+  } else {
+    storageOptions = '<option value="">⚠️ No providers — add one in Storage page</option>';
+  }
+
+  // Pre-select backup type
+  const isFull = sched.backup_type === 'full';
+
+  // Build notification checkboxes
+  let notifOptions = '';
+  let notifs = [];
+  try {
+    notifs = await API.get('/api/notifications');
+    if (notifs.length > 0) {
+      notifOptions = notifs.map(n => {
+        const checked = (sched.notif_target_ids || []).includes(n.id);
+        return `<label class="checkbox-label" style="margin-right:12px;">
+          <input type="checkbox" class="edit-sched-notif-chk" value="${n.id}" ${checked ? 'checked' : ''}>
+          ${escHtml(n.name)} (${n.notif_type})
+        </label>`;
+      }).join('');
+    } else {
+      notifOptions = '<p style="color:var(--text-muted);font-size:13px;">No notification targets</p>';
+    }
+  } catch (err) {
+    notifOptions = '<p style="color:var(--text-muted);font-size:13px;">Error loading notification targets</p>';
+  }
+
+  // Determine DB selection mode
+  const backupAll = sched.backup_all || false;
+  const dbIDs = sched.database_ids || [];
+
+  showModal('Edit Schedule', `
+    <div class="form-group">
+      <label class="form-label">Connection</label>
+      <select class="form-select" id="edit-sched-conn" onchange="loadDbChecklist(this.value, 'edit-sched-db-checklist', ${JSON.stringify(dbIDs)})">${connOptions}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Databases</label>
+      <div style="margin-bottom:8px;">
+        <label class="radio-label" style="margin-right:16px;cursor:pointer;">
+          <input type="radio" name="edit-sched-db-mode" value="all" ${backupAll ? 'checked' : ''} onchange="document.getElementById('edit-sched-db-checklist').style.display='none'">
+          <span style="font-size:13px;">All Databases</span>
+        </label>
+        <label class="radio-label" style="cursor:pointer;">
+          <input type="radio" name="edit-sched-db-mode" value="select" ${!backupAll && dbIDs.length > 0 ? 'checked' : ''} onchange="loadDbChecklist(document.getElementById('edit-sched-conn').value, 'edit-sched-db-checklist', ${JSON.stringify(dbIDs)});document.getElementById('edit-sched-db-checklist').style.display='block'">
+          <span style="font-size:13px;">Select Databases</span>
+        </label>
+      </div>
+      <div id="edit-sched-db-checklist" style="display:${!backupAll && dbIDs.length > 0 ? 'block' : 'none'};max-height:180px;overflow-y:auto;border:1px solid var(--border-default);border-radius:6px;padding:8px 12px;background:var(--bg-secondary);">
+        <div style="color:var(--text-muted);font-size:12px;">Loading databases...</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Backup Type</label>
+        <select class="form-select" id="edit-sched-type" onchange="updateScheduleRetention()">
+          <option value="full" ${isFull ? 'selected' : ''}>Full</option>
+          <option value="incremental" ${!isFull ? 'selected' : ''}>Incremental</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Cron Expression</label>
+        <input class="form-input" id="edit-sched-cron" value="${escHtml(sched.cron_expr)}" placeholder="0 1 * * *">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Storage Provider</label>
+      <select class="form-select" id="edit-sched-storage">${storageOptions}</select>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1" id="edit-ret-full-group">
+        <label class="form-label">Retention (days)</label>
+        <input class="form-input" type="number" id="edit-sched-ret-full" value="${sched.retention_full || 7}" min="1">
+      </div>
+    </div>
+    <div class="form-group" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
+      <label class="form-label">Notifications</label>
+      <div style="margin-bottom:8px;">
+        <label class="checkbox-label" style="margin-right:12px;">
+          <input type="checkbox" id="edit-sched-notif-success" ${sched.notify_on_success ? 'checked' : ''}> On success
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="edit-sched-notif-failure" ${sched.notify_on_failure ? 'checked' : ''}> On failure
+        </label>
+      </div>
+      <div>${notifOptions}</div>
+    </div>
+  `, async () => {
+    const connId = document.getElementById('edit-sched-conn').value;
+    if (!connId) { alert('Connection is required'); return false; }
+
+    // Get database selection
+    const allRadio = document.querySelector('input[name="edit-sched-db-mode"][value="all"]');
+    const selRadio = document.querySelector('input[name="edit-sched-db-mode"][value="select"]');
+    let backupAll = allRadio && allRadio.checked;
+    let databaseIds = [];
+    if (selRadio && selRadio.checked) {
+      document.querySelectorAll('#edit-sched-db-checklist .db-checklist-chk:checked').forEach(cb => databaseIds.push(cb.value));
+    }
+    if (!backupAll && databaseIds.length === 0) {
+      alert('Please select at least one database or choose All Databases');
+      return false;
+    }
+
+    const type = document.getElementById('edit-sched-type').value;
+    const cron = document.getElementById('edit-sched-cron').value;
+    const storageId = document.getElementById('edit-sched-storage').value;
+    const retFull = parseInt(document.getElementById('edit-sched-ret-full').value) || 7;
+    if (!cron) { alert('Cron expression is required'); return false; }
+    if (!storageId) { alert('Storage Provider is required'); return false; }
+
+    // Collect selected notification targets
+    const notifTargetIds = [];
+    document.querySelectorAll('.edit-sched-notif-chk:checked').forEach(cb => notifTargetIds.push(cb.value));
+    const notifOnSuccess = document.getElementById('edit-sched-notif-success').checked;
+    const notifOnFailure = document.getElementById('edit-sched-notif-failure').checked;
+
+    try {
+      await API.put(`/api/schedules/${id}`, {
+        connection_id: connId,
+        backup_all: backupAll,
+        database_ids: databaseIds.length > 0 ? databaseIds : undefined,
+        backup_type: type, cron_expr: cron,
+        storage_provider_id: storageId,
+        retention_full: retFull,
+        notif_target_ids: notifTargetIds,
+        notify_on_success: notifOnSuccess,
+        notify_on_failure: notifOnFailure,
+        enabled: sched.enabled
+      });
+      navigate('schedules');
+    } catch (err) { alert('Error: ' + err.message); return false; }
+  });
+
+  // Pre-load database checklist if in select mode
+  if (!backupAll && dbIDs.length > 0) {
+    loadDbChecklist(sched.connection_id, 'edit-sched-db-checklist', dbIDs);
+  } else if (!backupAll) {
+    loadDbChecklist(sched.connection_id, 'edit-sched-db-checklist', []);
+  }
 }
 
 async function runScheduleNow(id) {

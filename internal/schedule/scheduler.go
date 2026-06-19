@@ -106,19 +106,29 @@ func (s *Scheduler) addJob(sch *Schedule) error {
 }
 
 func (s *Scheduler) executeBackup(sch *Schedule) {
-	fmt.Printf("[scheduler] running backup for schedule %s (conn=%s, db=%s, storage=%s)\n",
-		sch.ID, sch.ConnectionID, sch.DatabaseID, sch.StorageProviderID)
+	fmt.Printf("[scheduler] running backup for schedule %s (conn=%s, backup_all=%v, db_ids=%v, db=%s, storage=%s)\n",
+		sch.ID, sch.ConnectionID, sch.BackupAll, sch.DatabaseIDs, sch.DatabaseID, sch.StorageProviderID)
 
-	if sch.StorageProviderID != "" {
-		storageProvID := &sch.StorageProviderID
-		_, err := s.runner.StartBackup(sch.ConnectionID, sch.DatabaseID, sch.BackupType, &sch.ID, storageProvID, sch.NotifTargetIDs, sch.NotifyOnSuccess, sch.NotifyOnFailure)
-		if err != nil {
-			fmt.Printf("[scheduler] ERROR running backup for schedule %s: %v\n", sch.ID, err)
-		}
-	} else {
-		_, err := s.runner.StartBackup(sch.ConnectionID, sch.DatabaseID, sch.BackupType, &sch.ID, nil, sch.NotifTargetIDs, sch.NotifyOnSuccess, sch.NotifyOnFailure)
-		if err != nil {
-			fmt.Printf("[scheduler] ERROR running backup for schedule %s: %v\n", sch.ID, err)
+	// Resolve which databases to backup
+	dbIDs, err := s.resolveDatabaseIDs(sch)
+	if err != nil {
+		fmt.Printf("[scheduler] ERROR resolving databases for schedule %s: %v\n", sch.ID, err)
+		return
+	}
+
+	for _, dbID := range dbIDs {
+		fmt.Printf("[scheduler] starting backup for schedule %s, db=%s\n", sch.ID, dbID)
+		if sch.StorageProviderID != "" {
+			storageProvID := &sch.StorageProviderID
+			_, err := s.runner.StartBackup(sch.ConnectionID, dbID, sch.BackupType, &sch.ID, storageProvID, sch.NotifTargetIDs, sch.NotifyOnSuccess, sch.NotifyOnFailure)
+			if err != nil {
+				fmt.Printf("[scheduler] ERROR running backup for schedule %s, db=%s: %v\n", sch.ID, dbID, err)
+			}
+		} else {
+			_, err := s.runner.StartBackup(sch.ConnectionID, dbID, sch.BackupType, &sch.ID, nil, sch.NotifTargetIDs, sch.NotifyOnSuccess, sch.NotifyOnFailure)
+			if err != nil {
+				fmt.Printf("[scheduler] ERROR running backup for schedule %s, db=%s: %v\n", sch.ID, dbID, err)
+			}
 		}
 	}
 
@@ -126,6 +136,34 @@ func (s *Scheduler) executeBackup(sch *Schedule) {
 	fmt.Printf("[scheduler] enforcing retention for schedule %s (full=%d, incr=%d)\n",
 		sch.ID, sch.RetentionFull, sch.RetentionIncr)
 	s.runner.EnforceRetention(sch.ID, sch.RetentionFull, sch.RetentionIncr)
+}
+
+// resolveDatabaseIDs returns the list of database IDs to backup for a schedule.
+// Priority: BackupAll (discover all) > DatabaseIDs (specific selection) > DatabaseID (legacy single).
+func (s *Scheduler) resolveDatabaseIDs(sch *Schedule) ([]string, error) {
+	if sch.BackupAll {
+		// Discover all databases for this connection
+		dbs, err := s.connRepo.ListDatabases(sch.ConnectionID)
+		if err != nil {
+			return nil, fmt.Errorf("list databases for backup_all: %w", err)
+		}
+		ids := make([]string, len(dbs))
+		for i, db := range dbs {
+			ids[i] = db.ID
+		}
+		return ids, nil
+	}
+
+	if len(sch.DatabaseIDs) > 0 {
+		return sch.DatabaseIDs, nil
+	}
+
+	// Legacy: single database_id
+	if sch.DatabaseID != "" {
+		return []string{sch.DatabaseID}, nil
+	}
+
+	return nil, fmt.Errorf("no database target defined (backup_all=false, no database_ids, no database_id)")
 }
 
 // RunNow manually triggers a scheduled backup immediately.
