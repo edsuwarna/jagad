@@ -559,6 +559,10 @@ type StatsResponse struct {
 	ByType        map[string]int `json:"by_type"`
 	ByStatus      map[string]int `json:"by_status"`
 	SuccessRate   float64        `json:"success_rate"`
+	TodayBackups  int            `json:"today_backups"`
+	FailedBackups int            `json:"failed_backups"`
+	AvgDurationMs float64        `json:"avg_duration_ms"`
+	DailyStats    []BackupTrend  `json:"daily_stats"`
 }
 
 // Stats returns aggregate backup statistics.
@@ -573,6 +577,11 @@ func (s *Service) Stats() (*StatsResponse, error) {
 		ByStatus: make(map[string]int),
 	}
 
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	var totalDurationMs float64
+	var durationCount int
+
 	for _, b := range backups {
 		stats.TotalBackups++
 		stats.ByType[b.BackupType]++
@@ -580,11 +589,32 @@ func (s *Service) Stats() (*StatsResponse, error) {
 		if b.SizeBytes != nil {
 			stats.TotalSize += *b.SizeBytes
 		}
+		if b.CreatedAt.After(todayStart) || b.CreatedAt.Equal(todayStart) {
+			stats.TodayBackups++
+		}
+		if b.DurationMs != nil {
+			totalDurationMs += float64(*b.DurationMs)
+			durationCount++
+		}
 	}
 
 	if stats.TotalBackups > 0 {
 		success := stats.ByStatus["success"]
 		stats.SuccessRate = float64(success) / float64(stats.TotalBackups) * 100
+	}
+
+	stats.FailedBackups = stats.ByStatus["failed"]
+
+	if durationCount > 0 {
+		stats.AvgDurationMs = totalDurationMs / float64(durationCount)
+	}
+
+	// Daily stats for the chart (30 days)
+	trends, err := s.repo.ListTrends(30)
+	if err != nil {
+		stats.DailyStats = []BackupTrend{}
+	} else {
+		stats.DailyStats = trends
 	}
 
 	return stats, nil

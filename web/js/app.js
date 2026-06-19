@@ -515,7 +515,7 @@ async function renderDashboard(el) {
   `;
 
   try {
-    const [conns, backups, scheds, storageProvs, stats] = await Promise.all([
+    const [conns, recent, scheds, storageProvs, stats] = await Promise.all([
       API.get('/api/connections'),
       API.get('/api/backups?limit=5'),
       API.get('/api/schedules'),
@@ -533,19 +533,12 @@ async function renderDashboard(el) {
     document.getElementById('kpi-dbs').textContent = connCount;
     document.getElementById('kpi-dbs-change').innerHTML = connCount > 0 ? '↑ ' + connCount + ' this week' : 'No connections';
 
-    const recent = backups || [];
-    const todayBackups = recent.length;
+    const todayBackups = stats && stats.today_backups ? stats.today_backups : 0;
     document.getElementById('kpi-backups').textContent = todayBackups;
     document.getElementById('kpi-backups-change').textContent = todayBackups + ' today';
 
     // Success rate
-    let successRate = 0;
-    if (stats && stats.success_rate) {
-      successRate = Math.round(stats.success_rate);
-    } else if (recent.length > 0) {
-      const sc = recent.filter(b => b.status === 'success').length;
-      successRate = Math.round((sc / recent.length) * 100);
-    }
+    const successRate = stats && stats.success_rate ? Math.round(stats.success_rate) : 0;
     document.getElementById('kpi-rate').textContent = successRate + '%';
     document.getElementById('kpi-rate-change').textContent = '— last 24h';
 
@@ -559,33 +552,38 @@ async function renderDashboard(el) {
     document.getElementById('kpi-servers').textContent = monServers;
     document.getElementById('kpi-servers-change').textContent = '↑ ' + connCount + ' total connections';
 
-    // ── Mini Bar Chart (30 bars — mockup style) ──
+    // ── Mini Bar Chart (30 bars — real data from stats.daily_stats) ──
     const chartEl = document.getElementById('chart-container');
     if (chartEl) {
-      // Generate 30 bars from stats or fallback to decorative
       const chartData = stats && stats.daily_stats ? stats.daily_stats : [];
       if (chartData.length >= 7) {
         const bars = chartData.slice(-30).map(d => {
-          const total = (d.total || 1);
-          const success = d.success || 0;
+          const total = (d.total_backups || 1);
+          const success = d.success_count || 0;
+          const pct = Math.round((success / total) * 100);
+          const cls = pct >= 50 ? 'success' : 'fail';
+          return `<div class="bar ${cls}" style="height:${Math.max(pct, 4)}%"></div>`;
+        }).join('');
+        chartEl.innerHTML = bars;
+      } else if (chartData.length > 0) {
+        // Some data but less than 7 days — show what we have
+        const bars = chartData.map(d => {
+          const total = (d.total_backups || 1);
+          const success = d.success_count || 0;
           const pct = Math.round((success / total) * 100);
           const cls = pct >= 50 ? 'success' : 'fail';
           return `<div class="bar ${cls}" style="height:${Math.max(pct, 4)}%"></div>`;
         }).join('');
         chartEl.innerHTML = bars;
       } else {
-        // Decorative bars like mockup
-        chartEl.innerHTML = [60,75,45,15,80,90,65,85,70,55,95,80,70,10,85,60,90,75,80,95,70,85,65,90,12,78,88,92,76,85]
-          .map(h => {
-            const cls = h >= 30 ? 'success' : 'fail';
-            return `<div class="bar ${cls}" style="height:${h}%"></div>`;
-          }).join('');
+        // No data yet — show empty state
+        chartEl.innerHTML = '<div class="chart-empty">No backup data yet</div>';
       }
     }
 
     // ── Chart Stats ──
-    const totalBackups = stats ? stats.total_backups : recent.length;
-    const failedCount = stats ? (stats.failed_backups || recent.filter(b => b.status === 'failed').length) : recent.filter(b => b.status === 'failed').length;
+    const totalBackups = stats ? stats.total_backups : 0;
+    const failedCount = stats ? stats.failed_backups : 0;
     const avgDur = stats && stats.avg_duration_ms ? (stats.avg_duration_ms / 1000).toFixed(1) + 's' : '—';
     document.getElementById('chart-rate').textContent = successRate + '%';
     document.getElementById('chart-total').textContent = totalBackups;
@@ -594,11 +592,12 @@ async function renderDashboard(el) {
 
     // ── Activity Feed ──
     const activityEl = document.getElementById('activity-feed');
-    if (!recent.length && !scheds.length && !conns.length) {
+    const activityBackups = recent || [];
+    if (!activityBackups.length && !scheds.length && !conns.length) {
       activityEl.innerHTML = `<div class="activity-item"><div class="activity-dot info"></div><div class="activity-text">No recent activity</div><span class="activity-time"></span></div>`;
     } else {
       const items = [];
-      recent.slice(0, 4).forEach(b => {
+      activityBackups.slice(0, 4).forEach(b => {
         const status = b.status === 'success' ? 'success' : b.status === 'failed' ? 'fail' : 'info';
         const dbLabel = b.database_label || b.database_id || 'Unknown';
         const sizeStr = b.size_bytes ? formatBytes(b.size_bytes) : '—';
@@ -619,7 +618,7 @@ async function renderDashboard(el) {
           time: s.created_at ? timeAgo(s.created_at) : '',
         });
       });
-      conns.slice(0, 2).forEach(c => {
+      conns.slice(0, 6).forEach(c => {
         const ct = c.db_type || '';
         const typeLabel = ct ? `(${ct.toUpperCase()})` : '';
         items.push({
