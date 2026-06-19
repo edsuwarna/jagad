@@ -1,0 +1,1849 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jagad — UI Improvements Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent: #818cf8;
+  --accent-dark: #6366f1;
+  --accent-light: #a5b4fc;
+  --accent-subtle: rgba(129, 140, 248, 0.12);
+
+  --bg-canvas: #08090a;
+  --bg-surface: #0f1011;
+  --bg-elevated: #191a1b;
+  --bg-hover: #222326;
+  --bg-header: rgba(15, 16, 17, 0.85);
+
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.12);
+  --border-accent: rgba(129, 140, 248, 0.3);
+
+  --text-primary: #f7f8f8;
+  --text-secondary: #8a8f98;
+  --text-tertiary: #62666d;
+  --text-muted: #505358;
+
+  --green: #22d66a;
+  --green-bg: rgba(34, 214, 106, 0.1);
+  --yellow: #f5a623;
+  --yellow-bg: rgba(245, 166, 35, 0.1);
+  --red: #ef4444;
+  --red-bg: rgba(239, 68, 68, 0.1);
+  --blue: #3b82f6;
+  --blue-bg: rgba(59, 130, 246, 0.1);
+  --purple: #a855f7;
+  --violet: #818cf8;
+  --orange: #f97316;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --shadow-border: 0px 0px 0px 1px var(--border-default);
+  --shadow-elevated: 0px 0px 0px 1px rgba(255,255,255,0.08), 0px 4px 12px rgba(0,0,0,0.4);
+  --shadow-card: 0px 0px 0px 1px rgba(255,255,255,0.06), 0px 2px 4px rgba(0,0,0,0.2);
+  --shadow-kpi: 0px 0px 0px 1px var(--border-default), 0px 1px 2px rgba(0,0,0,0.3);
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  display: flex;
+  min-height: 100vh;
+  font-feature-settings: 'cv01', 'ss03';
+  line-height: 1.5;
+}
+
+/* ─── Sidebar ─── */
+.sidebar {
+  width: 240px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-default);
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  margin-bottom: 28px;
+}
+
+.sidebar-logo-mark {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+}
+
+.sidebar-logo-text {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+}
+
+.sidebar-section {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-tertiary);
+  padding: 20px 8px 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s;
+  margin: 1px 0;
+  text-decoration: none;
+  border: none;
+  background: none;
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: var(--accent-subtle);
+  color: var(--accent-light);
+}
+
+.nav-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.nav-item.active svg { opacity: 1; }
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.nav-count {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ─── Main ─── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: var(--bg-header);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-default);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-left h1 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.12s;
+  border: none;
+  font-family: inherit;
+  letter-spacing: -0.1px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-kpi);
+}
+
+.btn-primary:hover { background: var(--accent-dark); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-icon { padding: 6px; width: 30px; height: 30px; justify-content: center; }
+
+/* ─── Content ─── */
+.content {
+  padding: 24px 28px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ─── Dashboard: KPI Row ─── */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  transition: all 0.15s;
+}
+
+.kpi-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-elevated);
+}
+
+.kpi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.kpi-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: -0.1px;
+}
+
+.kpi-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.5;
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--text-primary);
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.kpi-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.kpi-change.up { color: var(--green); }
+.kpi-change.down { color: var(--red); }
+.kpi-change.neutral { color: var(--text-tertiary); }
+
+/* ─── Dashboard: Grid Layout ─── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.card {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-default);
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.card-action {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+}
+
+.card-action:hover { color: var(--accent-light); }
+
+.card-body {
+  padding: 16px;
+}
+
+/* Mini Chart */
+.mini-chart {
+  height: 80px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 0 4px;
+}
+
+.mini-chart .bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  min-height: 4px;
+  transition: all 0.2s;
+}
+
+.mini-chart .bar.success {
+  background: linear-gradient(to top, rgba(34, 214, 106, 0.3), var(--green));
+}
+
+.mini-chart .bar.fail {
+  background: linear-gradient(to top, rgba(239, 68, 68, 0.3), var(--red));
+}
+
+.chart-stats {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 0 4px;
+}
+
+.chart-stat-item {
+  text-align: center;
+}
+
+.chart-stat-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chart-stat-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+/* Quick Actions */
+.quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.quick-action-card {
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-action-card:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-hover);
+}
+
+.quick-action-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+.quick-action-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.quick-action-desc {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* Activity Feed */
+.activity-feed { display: flex; flex-direction: column; gap: 0; }
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.activity-item:last-child { border-bottom: none; }
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.activity-dot.success { background: var(--green); }
+.activity-dot.fail { background: var(--red); }
+.activity-dot.info { background: var(--blue); }
+
+.activity-text {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.activity-text strong { color: var(--text-primary); font-weight: 500; }
+
+.activity-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ─── Connections ─── */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+  max-width: 360px;
+}
+
+.search-bar svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.search-bar input {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  flex: 1;
+}
+
+.search-bar input::placeholder { color: var(--text-muted); }
+
+.filter-pills {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 20px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.12s;
+}
+
+.pill:hover {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.pill.active {
+  background: var(--accent-subtle);
+  border-color: var(--border-accent);
+  color: var(--accent-light);
+}
+
+/* Table */
+.table-container {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-default);
+  overflow: hidden;
+}
+
+.table-header-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  gap: 12px;
+}
+
+.table-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 0.1s;
+  gap: 12px;
+}
+
+.table-row:hover { background: var(--bg-hover); }
+.table-row:last-child { border-bottom: none; }
+
+.table-col-checkbox { width: 20px; flex-shrink: 0; }
+.table-col-name { flex: 1.5; min-width: 0; }
+.table-col-type { flex: 0.8; }
+.table-col-status { flex: 0.7; }
+.table-col-host { flex: 1.2; }
+.table-col-databases { flex: 0.6; text-align: center; }
+.table-col-last { flex: 1; }
+.table-col-actions { flex: 0.5; text-align: right; }
+
+.conn-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.conn-sub {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.status-badge.online {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.status-badge.offline {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.status-badge.warning {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.type-badge svg { width: 14px; height: 14px; }
+
+.cell-text { font-size: 12px; color: var(--text-secondary); }
+.cell-text strong { color: var(--text-primary); font-weight: 500; }
+
+.expand-row {
+  display: none;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 16px 16px 16px 48px;
+}
+
+.expand-row.open { display: block; }
+
+.expand-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.detail-group {}
+.detail-label { font-size: 10px; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.5px; margin-bottom: 4px; }
+.detail-value { font-size: 12px; color: var(--text-primary); }
+.detail-value.mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+.recent-backups-mini {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.recent-backups-mini-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.recent-backup-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.recent-backup-item .rb-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rb-dot { width: 6px; height: 6px; border-radius: 50%; }
+.rb-dot.success { background: var(--green); }
+.rb-dot.fail { background: var(--red); }
+
+/* ─── Backups ─── */
+.backup-timeline-container {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.timeline-card {
+  flex: 1;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-default);
+  padding: 16px;
+}
+
+.timeline-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Calendar grid */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(30, 1fr);
+  gap: 3px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  min-height: 14px;
+  cursor: pointer;
+  position: relative;
+}
+
+.calendar-day.has-backup { background: rgba(129, 140, 248, 0.3); }
+.calendar-day.has-backup.multiple { background: var(--accent); }
+.calendar-day.failed { background: rgba(239, 68, 68, 0.4); }
+.calendar-day.today { outline: 2px solid var(--accent); outline-offset: 1px; }
+.calendar-day.empty { background: transparent; }
+
+.calendar-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.calendar-legend {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* Backup stats row */
+.backup-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.stat-label { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+
+/* Table with checkboxes */
+.batch-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--accent-subtle);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--accent-light);
+}
+
+.batch-bar.visible { display: flex; }
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 12px;
+  transition: background 0.1s;
+}
+
+.backup-row:hover { background: var(--bg-hover); }
+.backup-row:last-child { border-bottom: none; }
+
+.backup-col-checkbox { width: 20px; flex-shrink: 0; }
+.backup-col-name { flex: 1.5; }
+.backup-col-type { flex: 0.8; }
+.backup-col-size { flex: 0.6; text-align: right; }
+.backup-col-status { flex: 0.7; }
+.backup-col-time { flex: 1; }
+.backup-col-duration { flex: 0.6; text-align: right; }
+.backup-col-actions { flex: 0.4; text-align: right; }
+
+/* ─── Schedules ─── */
+.schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.schedule-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+  display: flex;
+  gap: 16px;
+  transition: all 0.15s;
+}
+
+.schedule-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-elevated);
+}
+
+.ring-container {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.ring-svg {
+  width: 56px;
+  height: 56px;
+  transform: rotate(-90deg);
+}
+
+.ring-bg {
+  fill: none;
+  stroke: var(--bg-hover);
+  stroke-width: 4;
+}
+
+.ring-fill {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s;
+}
+
+.ring-fill.good { stroke: var(--green); }
+.ring-fill.warn { stroke: var(--yellow); }
+.ring-fill.bad { stroke: var(--red); }
+
+.ring-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.schedule-info { flex: 1; min-width: 0; }
+
+.schedule-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.schedule-desc {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.schedule-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.schedule-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.schedule-meta-item svg { width: 12px; height: 12px; }
+
+.schedule-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: flex-start;
+}
+
+/* Page sections */
+.page { display: none; }
+.page.active { display: block; }
+
+/* Checkbox */
+input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border-default);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.12s;
+  background: transparent;
+}
+
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  width: 5px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Separator */
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.section-subtitle {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+  margin-top: -12px;
+}
+
+.page-marker {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  z-index: 999;
+}
+</style>
+</head>
+<body>
+
+<!-- ─── Sidebar ─── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-mark">J</div>
+    <span class="sidebar-logo-text">Jagad</span>
+  </div>
+
+  <div class="sidebar-section">Main</div>
+  <button class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    Dashboard
+  </button>
+  <button class="nav-item" data-page="connections" onclick="showPage('connections')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M4 20V4"/><path d="M20 20V8"/><path d="M8 12h4"/><path d="M12 8v8"/></svg>
+    Connections
+    <span class="nav-count">12</span>
+  </button>
+  <button class="nav-item" data-page="backups" onclick="showPage('backups')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><circle cx="12" cy="12" r="3"/></svg>
+    Backups
+  </button>
+  <button class="nav-item" data-page="schedules" onclick="showPage('schedules')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+    Schedules
+  </button>
+
+  <div class="sidebar-section">Management</div>
+  <button class="nav-item" data-page="storage" onclick="showPage('storage')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+    Storage
+  </button>
+  <button class="nav-item" data-page="notifications" onclick="showPage('notifications')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+    Notifications
+  </button>
+
+  <div class="sidebar-section">System</div>
+  <button class="nav-item" data-page="monitoring" onclick="showPage('monitoring')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+    Monitoring
+    <span class="nav-count">3</span>
+  </button>
+  <button class="nav-item" data-page="activity" onclick="showPage('activity')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+    Activity
+  </button>
+  <button class="nav-item" data-page="settings" onclick="showPage('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
+  </button>
+</nav>
+
+<!-- ─── Main Content ─── -->
+<div class="main">
+  <div class="header">
+    <div class="header-left">
+      <h1 id="page-title">Dashboard</h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+        Last 7 days
+      </button>
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Backup
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ═══════════ PAGE: DASHBOARD ═══════════ -->
+    <div id="page-dashboard" class="page active">
+      <!-- KPI Row -->
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Total Databases</span>
+            <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <div class="kpi-value">47</div>
+          <span class="kpi-change up">↑ 3 this week</span>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Backups Today</span>
+            <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <div class="kpi-value">18</div>
+          <span class="kpi-change up">↑ 12% from yesterday</span>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Success Rate</span>
+            <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="kpi-value" style="color: var(--green);">98.3%</div>
+          <span class="kpi-change neutral">— last 24h</span>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Storage Used</span>
+            <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <div class="kpi-value">142 GB</div>
+          <span class="kpi-change up">↓ 5% compressed</span>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label">Monitored Servers</span>
+            <svg class="kpi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+          <div class="kpi-value">15</div>
+          <span class="kpi-change up">↑ 2 this week</span>
+        </div>
+      </div>
+
+      <!-- Grid: Chart + Quick Actions -->
+      <div class="dashboard-grid">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Backup Success Rate (30 days)</span>
+            <button class="card-action">View full report →</button>
+          </div>
+          <div class="card-body">
+            <div class="mini-chart" id="chart-container">
+              <div class="bar success" style="height:60%"></div>
+              <div class="bar success" style="height:75%"></div>
+              <div class="bar success" style="height:45%"></div>
+              <div class="bar fail" style="height:15%"></div>
+              <div class="bar success" style="height:80%"></div>
+              <div class="bar success" style="height:90%"></div>
+              <div class="bar success" style="height:65%"></div>
+              <div class="bar success" style="height:85%"></div>
+              <div class="bar success" style="height:70%"></div>
+              <div class="bar success" style="height:55%"></div>
+              <div class="bar success" style="height:95%"></div>
+              <div class="bar success" style="height:80%"></div>
+              <div class="bar success" style="height:70%"></div>
+              <div class="bar fail" style="height:10%"></div>
+              <div class="bar success" style="height:85%"></div>
+              <div class="bar success" style="height:60%"></div>
+              <div class="bar success" style="height:90%"></div>
+              <div class="bar success" style="height:75%"></div>
+              <div class="bar success" style="height:80%"></div>
+              <div class="bar success" style="height:95%"></div>
+              <div class="bar success" style="height:70%"></div>
+              <div class="bar success" style="height:85%"></div>
+              <div class="bar success" style="height:65%"></div>
+              <div class="bar success" style="height:90%"></div>
+              <div class="bar fail" style="height:12%"></div>
+              <div class="bar success" style="height:78%"></div>
+              <div class="bar success" style="height:88%"></div>
+              <div class="bar success" style="height:92%"></div>
+              <div class="bar success" style="height:76%"></div>
+              <div class="bar success" style="height:85%"></div>
+            </div>
+            <div class="chart-stats">
+              <div class="chart-stat-item">
+                <div class="chart-stat-value">98.3%</div>
+                <div class="chart-stat-label">Success Rate</div>
+              </div>
+              <div class="chart-stat-item">
+                <div class="chart-stat-value">284</div>
+                <div class="chart-stat-label">Total Backups</div>
+              </div>
+              <div class="chart-stat-item">
+                <div class="chart-stat-value">5</div>
+                <div class="chart-stat-label">Failed</div>
+              </div>
+              <div class="chart-stat-item">
+                <div class="chart-stat-value">3.2s</div>
+                <div class="chart-stat-label">Avg Duration</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Quick Actions</span>
+          </div>
+          <div class="card-body">
+            <div class="quick-actions">
+              <div class="quick-action-card">
+                <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                <span class="quick-action-title">Run Backup</span>
+                <span class="quick-action-desc">Backup selected databases now</span>
+              </div>
+              <div class="quick-action-card">
+                <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span class="quick-action-title">Add Connection</span>
+                <span class="quick-action-desc">Add new database connection</span>
+              </div>
+              <div class="quick-action-card">
+                <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                <span class="quick-action-title">View Monitoring</span>
+                <span class="quick-action-desc">Check database health & metrics</span>
+              </div>
+              <div class="quick-action-card">
+                <svg class="quick-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                <span class="quick-action-title">Configure Schedule</span>
+                <span class="quick-action-desc">Set up or edit backup schedules</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Feed -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent Activity</span>
+          <button class="card-action">View all →</button>
+        </div>
+        <div class="card-body">
+          <div class="activity-feed">
+            <div class="activity-item">
+              <div class="activity-dot success"></div>
+              <div class="activity-text"><strong>Backup completed</strong> — prod-postgres-1 · <strong>mydb</strong> (1.2 GB, 8.3s)</div>
+              <span class="activity-time">2m ago</span>
+            </div>
+            <div class="activity-item">
+              <div class="activity-dot success"></div>
+              <div class="activity-text"><strong>Connection added</strong> — <strong>staging-mysql-2</strong> (MySQL 8.0)</div>
+              <span class="activity-time">14m ago</span>
+            </div>
+            <div class="activity-item">
+              <div class="activity-dot fail"></div>
+              <div class="activity-text"><strong>Backup failed</strong> — legacy-maria-1 · <strong>reports_db</strong> — connection timeout</div>
+              <span class="activity-time">32m ago</span>
+            </div>
+            <div class="activity-item">
+              <div class="activity-dot success"></div>
+              <div class="activity-text"><strong>Schedule updated</strong> — <strong>nightly-full-backup</strong> → runs at 02:00 daily</div>
+              <span class="activity-time">1h ago</span>
+            </div>
+            <div class="activity-item">
+              <div class="activity-dot info"></div>
+              <div class="activity-text"><strong>Storage provider verified</strong> — <strong>s3-production</strong> (45.2 TB available)</div>
+              <span class="activity-time">2h ago</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ PAGE: CONNECTIONS ═══════════ -->
+    <div id="page-connections" class="page">
+      <div class="search-bar" style="max-width:100%;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search connections by name, host, database..." value="">
+      </div>
+      <div class="filter-pills">
+        <button class="pill active">All Connections</button>
+        <button class="pill">PostgreSQL</button>
+        <button class="pill">MySQL</button>
+        <button class="pill">MariaDB</button>
+        <button class="pill">Online</button>
+        <button class="pill">⚠ Offline</button>
+      </div>
+
+      <div class="table-container">
+        <div class="table-header-row">
+          <div class="table-col-checkbox"></div>
+          <div class="table-col-name">Name</div>
+          <div class="table-col-type">Type</div>
+          <div class="table-col-status">Status</div>
+          <div class="table-col-host">Host</div>
+          <div class="table-col-databases">DBs</div>
+          <div class="table-col-last">Last Backup</div>
+          <div class="table-col-actions"></div>
+        </div>
+
+        <!-- Row 1 -->
+        <div class="table-row" onclick="toggleExpand(this)">
+          <div class="table-col-checkbox"><input type="checkbox" onclick="event.stopPropagation()"></div>
+          <div class="table-col-name">
+            <div class="conn-name">prod-postgres-1</div>
+            <div class="conn-sub">Production primary · PG15</div>
+          </div>
+          <div class="table-col-type">
+            <span class="type-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              PostgreSQL
+            </span>
+          </div>
+          <div class="table-col-status"><span class="status-badge online"><span class="status-dot"></span>Online</span></div>
+          <div class="table-col-host"><span class="cell-text">postgres-1.internal:5432</span></div>
+          <div class="table-col-databases"><span class="cell-text"><strong>8</strong></span></div>
+          <div class="table-col-last"><span class="cell-text">12m ago · ✓</span></div>
+          <div class="table-col-actions">
+            <button class="btn btn-ghost btn-icon" onclick="event.stopPropagation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="expand-row">
+          <div class="expand-detail-grid">
+            <div class="detail-group">
+              <div class="detail-label">Connection String</div>
+              <div class="detail-value mono">postgresql://admin@postgres-1.internal:5432</div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Version</div>
+              <div class="detail-value">PostgreSQL 15.4</div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Total Size</div>
+              <div class="detail-value">42.3 GB</div>
+            </div>
+          </div>
+          <div class="recent-backups-mini">
+            <div class="recent-backups-mini-title">Last 3 Backups</div>
+            <div class="recent-backup-item">
+              <div class="rb-status"><span class="rb-dot success"></span> mydb (1.2 GB)</div>
+              <span class="cell-text">12m ago · 8.3s</span>
+            </div>
+            <div class="recent-backup-item">
+              <div class="rb-status"><span class="rb-dot success"></span> analytics_db (3.8 GB)</div>
+              <span class="cell-text">1h ago · 24s</span>
+            </div>
+            <div class="recent-backup-item">
+              <div class="rb-status"><span class="rb-dot success"></span> config_db (120 MB)</div>
+              <span class="cell-text">3h ago · 1.2s</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="table-row" onclick="toggleExpand(this)">
+          <div class="table-col-checkbox"><input type="checkbox" onclick="event.stopPropagation()"></div>
+          <div class="table-col-name">
+            <div class="conn-name">staging-mysql-2</div>
+            <div class="conn-sub">Staging cluster · MySQL 8.0</div>
+          </div>
+          <div class="table-col-type">
+            <span class="type-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              MySQL
+            </span>
+          </div>
+          <div class="table-col-status"><span class="status-badge online"><span class="status-dot"></span>Online</span></div>
+          <div class="table-col-host"><span class="cell-text">staging-mysql.local:3306</span></div>
+          <div class="table-col-databases"><span class="cell-text"><strong>4</strong></span></div>
+          <div class="table-col-last"><span class="cell-text">45m ago · ✓</span></div>
+          <div class="table-col-actions">
+            <button class="btn btn-ghost btn-icon" onclick="event.stopPropagation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="expand-row">
+          <div class="expand-detail-grid">
+            <div class="detail-group">
+              <div class="detail-label">Connection String</div>
+              <div class="detail-value mono">mysql://admin@staging-mysql.local:3306</div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Version</div>
+              <div class="detail-value">MySQL 8.0.34</div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Total Size</div>
+              <div class="detail-value">18.7 GB</div>
+            </div>
+          </div>
+          <div class="recent-backups-mini">
+            <div class="recent-backups-mini-title">Last 3 Backups</div>
+            <div class="recent-backup-item">
+              <div class="rb-status"><span class="rb-dot success"></span> app_db (820 MB)</div>
+              <span class="cell-text">45m ago · 6.2s</span>
+            </div>
+            <div class="recent-backup-item">
+              <div class="rb-status"><span class="rb-dot success"></span> cache_db (240 MB)</div>
+              <span class="cell-text">3h ago · 2.1s</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 3 (Offline) -->
+        <div class="table-row" onclick="toggleExpand(this)">
+          <div class="table-col-checkbox"><input type="checkbox" onclick="event.stopPropagation()"></div>
+          <div class="table-col-name">
+            <div class="conn-name">legacy-maria-1</div>
+            <div class="conn-sub">Legacy archive · MariaDB 10.6</div>
+          </div>
+          <div class="table-col-type">
+            <span class="type-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              MariaDB
+            </span>
+          </div>
+          <div class="table-col-status"><span class="status-badge offline"><span class="status-dot"></span>Offline</span></div>
+          <div class="table-col-host"><span class="cell-text" style="color:var(--text-muted)">192.168.1.50:3307</span></div>
+          <div class="table-col-databases"><span class="cell-text"><strong>3</strong></span></div>
+          <div class="table-col-last"><span class="cell-text" style="color:var(--text-muted)">2d ago · ✗ timeout</span></div>
+          <div class="table-col-actions">
+            <button class="btn btn-ghost btn-icon" onclick="event.stopPropagation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="expand-row">
+          <div class="expand-detail-grid">
+            <div class="detail-group">
+              <div class="detail-label">Connection String</div>
+              <div class="detail-value mono">mysql://archive@192.168.1.50:3307</div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Version</div>
+              <div class="detail-value">MariaDB 10.6.12</div>
+            </div>
+            <div class="detail-group">
+              <div class="detail-label">Last Seen</div>
+              <div class="detail-value" style="color:var(--red)">2 days ago</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 4 -->
+        <div class="table-row" onclick="toggleExpand(this)">
+          <div class="table-col-checkbox"><input type="checkbox" onclick="event.stopPropagation()"></div>
+          <div class="table-col-name">
+            <div class="conn-name">analytics-clickhouse</div>
+            <div class="conn-sub">Analytics replicas · ClickHouse 23.8</div>
+          </div>
+          <div class="table-col-type">
+            <span class="type-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#22d66a" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+              PostgreSQL
+            </span>
+          </div>
+          <div class="table-col-status"><span class="status-badge warning"><span class="status-dot"></span>Warning</span></div>
+          <div class="table-col-host"><span class="cell-text">clickhouse-1.internal:8123</span></div>
+          <div class="table-col-databases"><span class="cell-text"><strong>12</strong></span></div>
+          <div class="table-col-last"><span class="cell-text">55m ago · ✓</span></div>
+          <div class="table-col-actions">
+            <button class="btn btn-ghost btn-icon" onclick="event.stopPropagation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ PAGE: BACKUPS ═══════════ -->
+    <div id="page-backups" class="page">
+      <!-- Stats -->
+      <div class="backup-stats-row">
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--green)">284</div>
+          <div class="stat-label">Total Backups (30d)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--red)">5</div>
+          <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">142.3 GB</div>
+          <div class="stat-label">Total Size</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" style="color:var(--blue)">3.2s</div>
+          <div class="stat-label">Avg Duration</div>
+        </div>
+      </div>
+
+      <!-- Timeline Calendar -->
+      <div class="backup-timeline-container">
+        <div class="timeline-card" style="flex:2">
+          <div class="timeline-card-title">Backup Activity (30 days)</div>
+          <div class="calendar-grid">
+            <div class="calendar-day has-backup multiple"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day failed"></div>
+            <div class="calendar-day empty"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup multiple"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day empty"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day empty"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day failed"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup multiple"></div>
+            <div class="calendar-day empty"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day has-backup"></div>
+            <div class="calendar-day failed"></div>
+            <div class="calendar-day has-backup multiple today"></div>
+          </div>
+          <div class="calendar-legend">
+            <div class="legend-item"><div class="legend-swatch" style="background:var(--accent)"></div> Multiple backups</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(129,140,248,0.3)"></div> Single backup</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:rgba(239,68,68,0.4)"></div> Failed</div>
+            <div class="legend-item"><div class="legend-swatch" style="outline:2px solid var(--accent);outline-offset:-1px"></div> Today</div>
+          </div>
+        </div>
+        <div class="timeline-card" style="flex:1">
+          <div class="timeline-card-title">By Connection</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+                <span style="color:var(--text-secondary)">prod-postgres-1</span>
+                <span style="color:var(--text-primary)">124 backups</span>
+              </div>
+              <div style="height:6px;background:var(--bg-hover);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:44%;background:linear-gradient(90deg,var(--accent),var(--accent-light));border-radius:3px;"></div>
+              </div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+                <span style="color:var(--text-secondary)">staging-mysql-2</span>
+                <span style="color:var(--text-primary)">68 backups</span>
+              </div>
+              <div style="height:6px;background:var(--bg-hover);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:24%;background:linear-gradient(90deg,var(--blue),#60a5fa);border-radius:3px;"></div>
+              </div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+                <span style="color:var(--text-secondary)">analytics-clickhouse</span>
+                <span style="color:var(--text-primary)">52 backups</span>
+              </div>
+              <div style="height:6px;background:var(--bg-hover);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:18%;background:linear-gradient(90deg,var(--green),#34d399);border-radius:3px;"></div>
+              </div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+                <span style="color:var(--text-secondary)">Others (6)</span>
+                <span style="color:var(--text-primary)">40 backups</span>
+              </div>
+              <div style="height:6px;background:var(--bg-hover);border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:14%;background:linear-gradient(90deg,var(--text-tertiary),var(--text-secondary));border-radius:3px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Batch Actions Bar -->
+      <div class="batch-bar" id="batch-bar">
+        <input type="checkbox" checked onchange="document.getElementById('batch-bar').classList.toggle('visible', this.checked)">
+        <span><strong>2</strong> backups selected</span>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm" style="background:var(--red-bg);color:var(--red);border:1px solid rgba(239,68,68,0.2);">Delete</button>
+        <button class="btn btn-sm btn-ghost">Restore</button>
+        <button class="btn btn-sm btn-ghost">Download</button>
+      </div>
+
+      <!-- Table -->
+      <div class="table-container">
+        <div class="table-header-row">
+          <div class="backup-col-checkbox"></div>
+          <div class="backup-col-name">Database</div>
+          <div class="backup-col-type">Connection</div>
+          <div class="backup-col-size">Size</div>
+          <div class="backup-col-status">Status</div>
+          <div class="backup-col-time">Time</div>
+          <div class="backup-col-duration">Duration</div>
+          <div class="backup-col-actions"></div>
+        </div>
+
+        <div class="backup-row">
+          <div class="backup-col-checkbox"><input type="checkbox" checked onchange="toggleBatchBar()"></div>
+          <div class="backup-col-name"><span class="conn-name">mydb</span><div class="conn-sub">Full backup</div></div>
+          <div class="backup-col-type"><span class="cell-text">prod-postgres-1</span></div>
+          <div class="backup-col-size"><span class="cell-text">1.2 GB</span></div>
+          <div class="backup-col-status"><span class="status-badge online"><span class="status-dot"></span>Success</span></div>
+          <div class="backup-col-time"><span class="cell-text">12m ago</span></div>
+          <div class="backup-col-duration"><span class="cell-text">8.3s</span></div>
+          <div class="backup-col-actions">
+            <button class="btn btn-ghost btn-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="backup-row">
+          <div class="backup-col-checkbox"><input type="checkbox" checked onchange="toggleBatchBar()"></div>
+          <div class="backup-col-name"><span class="conn-name">analytics_db</span><div class="conn-sub">Incremental</div></div>
+          <div class="backup-col-type"><span class="cell-text">prod-postgres-1</span></div>
+          <div class="backup-col-size"><span class="cell-text">3.8 GB</span></div>
+          <div class="backup-col-status"><span class="status-badge online"><span class="status-dot"></span>Success</span></div>
+          <div class="backup-col-time"><span class="cell-text">1h ago</span></div>
+          <div class="backup-col-duration"><span class="cell-text">24.0s</span></div>
+          <div class="backup-col-actions">
+            <button class="btn btn-ghost btn-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="backup-row">
+          <div class="backup-col-checkbox"><input type="checkbox" onchange="toggleBatchBar()"></div>
+          <div class="backup-col-name"><span class="conn-name">reports_db</span><div class="conn-sub">Full backup</div></div>
+          <div class="backup-col-type"><span class="cell-text">legacy-maria-1</span></div>
+          <div class="backup-col-size"><span class="cell-text">650 MB</span></div>
+          <div class="backup-col-status"><span class="status-badge offline"><span class="status-dot"></span>Failed</span></div>
+          <div class="backup-col-time"><span class="cell-text">2h ago</span></div>
+          <div class="backup-col-duration"><span class="cell-text">30.0s (timeout)</span></div>
+          <div class="backup-col-actions">
+            <button class="btn btn-ghost btn-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="backup-row">
+          <div class="backup-col-checkbox"><input type="checkbox" onchange="toggleBatchBar()"></div>
+          <div class="backup-col-name"><span class="conn-name">app_db</span><div class="conn-sub">Full backup</div></div>
+          <div class="backup-col-type"><span class="cell-text">staging-mysql-2</span></div>
+          <div class="backup-col-size"><span class="cell-text">820 MB</span></div>
+          <div class="backup-col-status"><span class="status-badge online"><span class="status-dot"></span>Success</span></div>
+          <div class="backup-col-time"><span class="cell-text">3h ago</span></div>
+          <div class="backup-col-duration"><span class="cell-text">6.2s</span></div>
+          <div class="backup-col-actions">
+            <button class="btn btn-ghost btn-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ PAGE: SCHEDULES ═══════════ -->
+    <div id="page-schedules" class="page">
+      <div class="schedule-grid">
+        <!-- Schedule 1 -->
+        <div class="schedule-card">
+          <div class="ring-container">
+            <svg class="ring-svg" viewBox="0 0 56 56">
+              <circle class="ring-bg" cx="28" cy="28" r="24"/>
+              <circle class="ring-fill good" cx="28" cy="28" r="24" stroke-dasharray="150.8" stroke-dashoffset="15.1"/>
+            </svg>
+            <span class="ring-label">90%</span>
+          </div>
+          <div class="schedule-info">
+            <div class="schedule-name">nightly-full-backup</div>
+            <div class="schedule-desc">Full backup semua database production</div>
+            <div class="schedule-meta">
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                Next: 02:00 (8h 23m)
+              </span>
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                28/30 succeeded
+              </span>
+            </div>
+          </div>
+          <div class="schedule-actions">
+            <button class="btn btn-ghost btn-sm">Edit</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red)">Disable</button>
+          </div>
+        </div>
+
+        <!-- Schedule 2 -->
+        <div class="schedule-card">
+          <div class="ring-container">
+            <svg class="ring-svg" viewBox="0 0 56 56">
+              <circle class="ring-bg" cx="28" cy="28" r="24"/>
+              <circle class="ring-fill good" cx="28" cy="28" r="24" stroke-dasharray="150.8" stroke-dashoffset="30.2"/>
+            </svg>
+            <span class="ring-label">80%</span>
+          </div>
+          <div class="schedule-info">
+            <div class="schedule-name">hourly-incremental</div>
+            <div class="schedule-desc">Incremental backup tiap jam untuk data transaksional</div>
+            <div class="schedule-meta">
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                Next: 15:00 (12m)
+              </span>
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                142/176 succeeded
+              </span>
+            </div>
+          </div>
+          <div class="schedule-actions">
+            <button class="btn btn-ghost btn-sm">Edit</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red)">Disable</button>
+          </div>
+        </div>
+
+        <!-- Schedule 3 -->
+        <div class="schedule-card">
+          <div class="ring-container">
+            <svg class="ring-svg" viewBox="0 0 56 56">
+              <circle class="ring-bg" cx="28" cy="28" r="24"/>
+              <circle class="ring-fill warn" cx="28" cy="28" r="24" stroke-dasharray="150.8" stroke-dashoffset="45.2"/>
+            </svg>
+            <span class="ring-label">70%</span>
+          </div>
+          <div class="schedule-info">
+            <div class="schedule-name">weekly-archive</div>
+            <div class="schedule-desc">Archive backup mingguan — cold storage</div>
+            <div class="schedule-meta">
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                Next: Sun 03:00 (2d 11h)
+              </span>
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                7/10 succeeded
+              </span>
+            </div>
+          </div>
+          <div class="schedule-actions">
+            <button class="btn btn-ghost btn-sm">Edit</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red)">Disable</button>
+          </div>
+        </div>
+
+        <!-- Schedule 4 -->
+        <div class="schedule-card">
+          <div class="ring-container">
+            <svg class="ring-svg" viewBox="0 0 56 56">
+              <circle class="ring-bg" cx="28" cy="28" r="24"/>
+              <circle class="ring-fill bad" cx="28" cy="28" r="24" stroke-dasharray="150.8" stroke-dashoffset="75.4"/>
+            </svg>
+            <span class="ring-label">50%</span>
+          </div>
+          <div class="schedule-info">
+            <div class="schedule-name">legacy-maria-backup</div>
+            <div class="schedule-desc">Backup legacy MariaDB — unstable connection</div>
+            <div class="schedule-meta" style="color:var(--red)">
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                Next: 04:00 (10h 23m)
+              </span>
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                5/10 succeeded
+              </span>
+            </div>
+          </div>
+          <div class="schedule-actions">
+            <button class="btn btn-ghost btn-sm">Edit</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red)">Disable</button>
+          </div>
+        </div>
+
+        <!-- Schedule 5 -->
+        <div class="schedule-card">
+          <div class="ring-container">
+            <svg class="ring-svg" viewBox="0 0 56 56">
+              <circle class="ring-bg" cx="28" cy="28" r="24"/>
+              <circle class="ring-fill good" cx="28" cy="28" r="24" stroke-dasharray="150.8" stroke-dashoffset="0"/>
+            </svg>
+            <span class="ring-label">100%</span>
+          </div>
+          <div class="schedule-info">
+            <div class="schedule-name">staging-daily</div>
+            <div class="schedule-desc">Daily backup staging environment</div>
+            <div class="schedule-meta">
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>
+                Next: 06:00 (12h 23m)
+              </span>
+              <span class="schedule-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                30/30 succeeded
+              </span>
+            </div>
+          </div>
+          <div class="schedule-actions">
+            <button class="btn btn-ghost btn-sm">Edit</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--red)">Disable</button>
+          </div>
+        </div>
+
+        <!-- Schedule 6 (Add New) -->
+        <div class="schedule-card" style="border:2px dashed var(--border-default);justify-content:center;align-items:center;background:transparent;cursor:pointer;">
+          <div style="text-align:center;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="2" style="width:32px;height:32px;margin-bottom:8px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <div style="font-size:14px;font-weight:600;color:var(--text-secondary);">Add New Schedule</div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">Create backup schedule</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="page-marker" id="page-marker">Dashboard</div>
+
+<script>
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
+
+  const titles = {
+    dashboard: 'Dashboard',
+    connections: 'Connections',
+    backups: 'Backups',
+    schedules: 'Schedules',
+    storage: 'Storage',
+    notifications: 'Notifications',
+    monitoring: 'Monitoring',
+    activity: 'Activity',
+    settings: 'Settings'
+  };
+  document.getElementById('page-title').textContent = titles[page] || page;
+  document.getElementById('page-marker').textContent = titles[page] || page;
+}
+
+function toggleExpand(row) {
+  const expand = row.nextElementSibling;
+  if (expand && expand.classList.contains('expand-row')) {
+    expand.classList.toggle('open');
+  }
+}
+
+function toggleBatchBar() {
+  const checked = document.querySelectorAll('.backup-row input[type="checkbox"]:checked').length;
+  const bar = document.getElementById('batch-bar');
+  bar.classList.toggle('visible', checked > 0);
+  bar.querySelector('strong').textContent = checked;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Init batch bar visibility
+  const bar = document.getElementById('batch-bar');
+  if (bar) bar.classList.add('visible');
+});
+</script>
+</body>
+</html>
